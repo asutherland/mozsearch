@@ -86,13 +86,18 @@ pub struct WithLocation<T> {
     pub loc: Location,
 }
 
-#[derive(Debug, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub enum AnalysisKind {
     Use,
     Def,
     Assign,
     Decl,
     Idl,
+    /// This is a derived analysis type used for cross-referencing purposes that could also be
+    /// thought of as "calls".  Consume records are derived by taking target "Use" kinds and
+    /// grouping them by their contextsym.  They are out-edges from a symbol that otherwise only
+    /// has in-edges.
+    Consume,
 }
 
 impl fmt::Display for AnalysisKind {
@@ -103,6 +108,7 @@ impl fmt::Display for AnalysisKind {
             AnalysisKind::Assign => "assign",
             AnalysisKind::Decl => "decl",
             AnalysisKind::Idl => "idl",
+            AnalysisKind::Consume => "consume",
         };
         formatter.write_str(str)
     }
@@ -276,6 +282,10 @@ pub fn read_analysis<T>(
     read_analyses(&vec![filename], filter)
 }
 
+/// Load analysis data for one or more files, sorting and grouping by location, with data payloads
+/// transformed via the provided `filter`, resulting in either AnalysisSource records being
+/// returned (if `read_source` is provided) or AnalysisTarget (if `read_target`) and other record
+/// types being ignored.
 pub fn read_analyses<T>(
     filenames: &[&str],
     filter: &mut dyn FnMut(&Object) -> Option<T>,

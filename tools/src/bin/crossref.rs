@@ -20,7 +20,7 @@ use tools::find_source_file;
 extern crate rustc_serialize;
 use rustc_serialize::json::{Json, ToJson};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct SearchResult {
     lineno: u32,
     bounds: (u32, u32),
@@ -94,6 +94,19 @@ impl StringIntern {
     }
 }
 
+/// Process all analysis files, deriving the `crossref`, `jumps`, and `identifiers` output files.
+/// See https://github.com/mozsearch/mozsearch/blob/master/docs/crossref.md for high-level
+/// documentation on how this works (locally, `docs/crossref.md`).
+///
+/// ## Implementation
+/// There are 2 phases of processing:
+/// 1. The analysis files are read, populating `table`, `pretty_table`, and `id_table`
+///    incrementally.
+/// 2. The table is consumed with jumps generated as a byproduct.
+///
+/// ### Memory Management
+/// Memory usage grows continually throughout phase 1.  Because we load many identical strings,
+/// we use string interning so that all long-lived strings are reference-counted interned strings.
 fn main() {
     env_logger::init();
     let args: Vec<_> = env::args().collect();
@@ -116,9 +129,16 @@ fn main() {
     let mut strings = StringIntern::new();
     let empty_string = strings.add("".to_string());
 
+    // Nested table hierarchy keyed by: [symbol, kind, path] with Vec as the leaf values.
     let mut table = BTreeMap::new();
+    // Maps (raw) symbol to interned-pretty symbol string.  Each raw symbol is unique, but there
+    // may be many raw symbols that map to the same pretty symbol string.
     let mut pretty_table = HashMap::new();
+    // Reverse of pretty_table.  The key is the pretty symbol, and the value is a BTreeSet of all
+    // of the raw symbols that map to the pretty symbol.  Pretty symbols that start with numbers or
+    // include whitespace are considered illegal and not included in the map.
     let mut id_table = BTreeMap::new();
+    // Not populated until phase 2 when we walk the above data-structures.
     let mut jumps = Vec::new();
 
     for path in &file_paths {
@@ -127,11 +147,9 @@ fn main() {
         let analysis_fname = format!("{}/analysis/{}", tree_config.paths.index_path, path);
         let analysis = read_analysis(&analysis_fname, &mut read_target);
 
-        let source_fname = find_source_file(
-            path,
-            &tree_config.paths.files_path,
-            &tree_config.paths.objdir_path,
-        );
+        // Load the source file and chop it up into `lines` so that we extract `peek_lines` for
+        // each symbol with a peek_range.
+        let source_fname = find_source_file(path, &tree_config.paths.files_path, &tree_config.paths.objdir_path);
         let source_file = match File::open(source_fname) {
             Ok(f) => f,
             Err(_) => {
@@ -156,57 +174,96 @@ fn main() {
             .collect();
 
         for datum in analysis {
+            // pieces are all `AnalysisTarget` instances.
             for piece in datum.data {
-                let sym = strings.add(piece.sym.to_owned());
-                let t1 = table.entry(Rc::clone(&sym)).or_insert(BTreeMap::new());
-                let t2 = t1.entry(piece.kind).or_insert(BTreeMap::new());
-                let p: &str = &path;
-                let t3 = t2.entry(p).or_insert(Vec::new());
-                let lineno = (datum.loc.lineno - 1) as usize;
-                if lineno >= lines.len() {
-                    print!("Bad line number in file {} (line {})\n", path, lineno);
-                    continue;
-                }
+                // If this is a "use" with a contextsym, then we want to reflect it into a
+                // "consume".  Because the table stuff below does a bunch of borrowing, and asuth
+                // has not yet reached rust zen, we hackily wrap the normal logic in a block below
+                // and introduce maybe_consume_rec as a boolean indicator of our need to create a
+                // "consume" record and the data payload to also insert.
+                let mut maybe_consume_rec : Option<(Rc<String>, SearchResult)> = None;
 
-                let (line, offset) = lines[lineno].clone();
+                {
+                    let sym = strings.add(piece.sym.to_owned());
+                    let t1 = table.entry(Rc::clone(&sym)).or_insert(BTreeMap::new());
+                    let t2 = t1.entry(piece.kind.clone()).or_insert(BTreeMap::new());
+                    let p: &str = &path;
+                    let t3 = t2.entry(p).or_insert(Vec::new());
+                    let lineno = (datum.loc.lineno - 1) as usize;
+                    if lineno >= lines.len() {
+                        print!("Bad line number in file {} (line {})\n", path, lineno);
+                        continue;
+                    }
 
-                let peek_start = piece.peek_range.start_lineno;
-                let peek_end = piece.peek_range.end_lineno;
-                let mut peek_lines = String::new();
-                if peek_start != 0 {
-                    // The offset of the first non-whitespace
-                    // character of the first line of the peek
-                    // lines. We want all the lines in the peek lines
-                    // to be cut to this offset.
-                    let left_offset = lines[(peek_start - 1) as usize].1;
+                    let (line, offset) = lines[lineno].clone();
 
-                    for peek_line_index in peek_start..peek_end + 1 {
-                        let &(ref peek_line, peek_offset) = &lines[(peek_line_index - 1) as usize];
+                    let peek_start = piece.peek_range.start_lineno;
+                    let peek_end = piece.peek_range.end_lineno;
+                    let mut peek_lines = String::new();
+                    if peek_start != 0 {
+                        // The offset of the first non-whitespace
+                        // character of the first line of the peek
+                        // lines. We want all the lines in the peek lines
+                        // to be cut to this offset.
+                        let left_offset = lines[(peek_start - 1) as usize].1;
 
-                        for _i in left_offset..peek_offset {
-                            peek_lines.push(' ');
+                        for peek_line_index in peek_start .. peek_end + 1 {
+                            let &(ref peek_line, peek_offset) = &lines[(peek_line_index - 1) as usize];
+
+                            for _i in left_offset .. peek_offset {
+                                peek_lines.push(' ');
+                            }
+                            peek_lines.push_str(&peek_line);
+                            peek_lines.push('\n');
                         }
-                        peek_lines.push_str(&peek_line);
-                        peek_lines.push('\n');
+                    }
+
+                    let sr = SearchResult {
+                        lineno: datum.loc.lineno,
+                        bounds: (datum.loc.col_start - offset, datum.loc.col_end - offset),
+                        line: line,
+                        context: strings.add(piece.context),
+                        contextsym: strings.add(piece.contextsym),
+                        peek_lines: strings.add(peek_lines),
+                    };
+
+                    // Idempotently insert the symbol -> pretty symbol mapping into `pretty_table`.
+                    let pretty = strings.add(piece.pretty.to_owned());
+                    pretty_table.insert(Rc::clone(&sym), Rc::clone(&pretty));
+
+                    // If this is a use and there's a contextsym, we want to create a "Consume"
+                    // entry under the contextsym.  We also want to invert the use of "context"
+                    // to be the symbol in question; it's not useful to name the context symbol
+                    // redundantly when it's the symbol we're attaching data to.
+                    if piece.kind == AnalysisKind::Use && !sr.contextsym.is_empty() {
+                        maybe_consume_rec = Some((Rc::clone(&sr.contextsym), SearchResult {
+                            lineno: sr.lineno,
+                            bounds: sr.bounds.clone(),
+                            line: Rc::clone(&sr.line),
+                            context: Rc::clone(&pretty),
+                            contextsym: Rc::clone(&sym),
+                            peek_lines: Rc::clone(&sr.peek_lines),
+                        }));
+                    }
+
+                    t3.push(sr);
+
+                    // Idempotently insert the pretty symbol -> symbol mapping as long as the pretty
+                    // symbol looks sane.  (Whitespace breaks the `identifiers` file's text format, so
+                    // we can't include them.)
+                    let ch = piece.sym.chars().nth(0).unwrap();
+                    if !(ch >= '0' && ch <= '9') && !piece.sym.contains(' ') {
+                        let t1 = id_table.entry(pretty).or_insert(BTreeSet::new());
+                        t1.insert(sym);
                     }
                 }
 
-                t3.push(SearchResult {
-                    lineno: datum.loc.lineno,
-                    bounds: (datum.loc.col_start - offset, datum.loc.col_end - offset),
-                    line: line,
-                    context: strings.add(piece.context),
-                    contextsym: strings.add(piece.contextsym),
-                    peek_lines: strings.add(peek_lines),
-                });
-
-                let pretty = strings.add(piece.pretty.to_owned());
-                pretty_table.insert(Rc::clone(&sym), Rc::clone(&pretty));
-
-                let ch = piece.sym.chars().nth(0).unwrap();
-                if !(ch >= '0' && ch <= '9') && !piece.sym.contains(' ') {
-                    let t1 = id_table.entry(pretty).or_insert(BTreeSet::new());
-                    t1.insert(sym);
+                if let Some((put_sym, consume_rec)) = maybe_consume_rec {
+                    let ct1 = table.entry(put_sym).or_insert(BTreeMap::new());
+                    let ct2 = ct1.entry(AnalysisKind::Consume).or_insert(BTreeMap::new());
+                    let cp: &str = &path;
+                    let ct3 = ct2.entry(cp).or_insert(Vec::new());
+                    ct3.push(consume_rec);
                 }
             }
         }
@@ -225,11 +282,12 @@ fn main() {
                 result.push(Json::Object(obj));
             }
             let kindstr = match *kind {
-                AnalysisKind::Use => "Uses",
-                AnalysisKind::Def => "Definitions",
-                AnalysisKind::Assign => "Assignments",
-                AnalysisKind::Decl => "Declarations",
-                AnalysisKind::Idl => "IDL",
+                AnalysisKind::Use => "uses",
+                AnalysisKind::Def => "defs",
+                AnalysisKind::Assign => "assignments",
+                AnalysisKind::Decl => "decls",
+                AnalysisKind::Idl => "idl",
+                AnalysisKind::Consume => "consumes",
             };
             kindmap.insert(kindstr.to_string(), Json::Array(result));
         }
