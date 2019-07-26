@@ -23,6 +23,7 @@ import identifiers
 import codesearch
 from logger import log
 from six.moves import range
+from raw_search import RawSearchResults
 
 def index_path(tree_name):
     return config['trees'][tree_name]['index_path']
@@ -51,6 +52,26 @@ def parse_path_filter(filter):
     filter = re.sub('{([^}]*)}', repl, filter)
 
     return filter
+
+key_remapping = { 'uses': 'Uses', 'defs': 'Definitions', 'assignments': 'Assignments',
+                  'decls': 'Declarations', 'idl': 'IDL', 'conumes': None }
+
+def expand_keys(new_keyed):
+    '''
+    Converts to the old Uses/Definitions/Assignments/Declarations/IDL rep
+    from the new uses/defs/assignments/decls/idl rep, dropping 'consumes'
+    entries.  Performs the mutation in-place which also means keys that aren't
+    re-mapped are passed through untouched.
+    '''
+    for new_name, old_name in key_remapping.items():
+        if new_name in new_keyed:
+            # just drop records that the old names don't know how to handle.
+            if old_name is None:
+                new_keyed.pop(new_name)
+            else:
+                new_keyed[old_name] = new_keyed.pop(new_name);
+
+    return new_keyed
 
 def escape_regex(searchString):
     # a version of re.escape that doesn't escape every non-ASCII character,
@@ -123,6 +144,15 @@ class SearchResults(object):
     key_precedences = ["Files", "IDL", "Definitions", "Assignments", "Uses", "Declarations", "Textual Occurrences"]
 
     def categorize_path(self, path):
+        '''
+        Given a path, decide whether it's "normal"/"test"/"generated".  These
+        are the 3 top-level groups by which results are categorized.
+
+        These are hardcoded heuristics that probably could be better defined
+        in the `config.json` metadata, with a means for trees like gecko to be
+        able to leverage in-tree build meta-information like moz.build and the
+        various mochitest.ini files, etc.
+        '''
         def is_test(p):
             # Except /unit/ and /androidTest/, all other paths contain the substring 'test', so we can exit early
             # in case it is not present.
@@ -146,6 +176,21 @@ class SearchResults(object):
             return 'normal'
 
     def compile_result(self, kind, qual, pathr, line_modifier):
+        '''
+        Given path-binned results of a specific analysis `kind` for a
+        pretty symbol (`qual`), categorize the path into generated/test/normal
+        and nest the results under a [pathkind, qkind, path] nested key
+        hierarchy where the values are an array of crossref.rs `SearchResult`
+        json results plus the line_modifier fixup hack.
+
+        Path filtering requested via `set_path_filter` is performed at this
+        stage.
+
+        line_modifier is a (closed-over) fixup function that was passed in to
+        add_qualified_results that's provided the given `line`.  It's only ever
+        used by identifier_search in order to fixup "bounds" to compensate for
+        prefix searches.
+        '''
         if qual:
             qkind = '%s (%s)' % (kind, qual)
         else:
@@ -165,6 +210,22 @@ class SearchResults(object):
         path_results[0].extend(lines)
 
     def sort_compiled(self):
+        '''
+        Traverse the `compiled` state in `path_precedences` order, and then
+        its "qkind" children in their inherent order (which is derived from
+        the use of `key_precedences` by `get()`), transforming and propagating
+        the results, applying a `max_count` result limit.
+
+        Additional transformations that are performed:
+        - result de-duplication is performed so that a given (path, line) tuple
+          can only be emitted once.  Because of the intentional order of
+          `key_precedences` this means that semantic matches should preclude
+          their results from being duplicated in the more naive text search
+          results.
+        - line_modifier's bounds fixups as mentioned in `compile_result` are
+          applied which helps the bolding logic in the display logic on the
+          (web) client.
+        '''
         count = 0
 
         line_hash = {}
@@ -175,6 +236,7 @@ class SearchResults(object):
                 paths = list(self.compiled[pathkind][qkind].keys())
                 paths.sort()
                 for path in paths:
+                    # see `compile_resulte docs for line_modifier above.
                     (lines, line_modifier) = self.compiled[pathkind][qkind][path]
                     lines.sort(key=lambda l: l['lno'])
                     lines_out = []
@@ -204,6 +266,14 @@ class SearchResults(object):
         return result
 
     def get(self, work_limit):
+        '''
+        Work-limiting/result-bounding logic to process the returned results,
+        capping them based on some heuristics.  Limiting is performed for each
+        "key" type (AKA analysis kind), with the harder result limit occurring
+        in `sort_compiled` where a hard result limit `max_count` is enforced.
+
+        See `compile_result` and `sort_compiled` for more info.
+        '''
         # compile_result will categorize each path that it sees.
         # It will build a list of paths indexed by pathkind, qkind.
         # Later I'll iterate over this, remove dupes, sort, and keep the top ones.
@@ -249,9 +319,17 @@ def identifier_search(search, tree_name, needle, complete, fold_case):
     needle = re.sub(r'\\(.)', r'\1', needle)
 
     pieces = re.split(r'\.|::', needle)
+    # If the last segment of the search needle is too short, return no results
+    # because we're worried that would return too many results.
     if not complete and len(pieces[-1]) < 3:
         return {}
 
+    # Fixup closure for use by add_qualified_results to reduce the range of the
+    # match's bounds to the prefix that was included in the search needle from
+    # the full bounds of the search result.  (So if the search was "foo::bar"
+    # and we matched "foo::bartab" and "foo::barhat", the idea I guess is that
+    # only the "bar" portion would be highlighted assuming the bounds
+    # previously were referencing "bartab" and "barhat".)
     def line_modifier(line):
         if 'bounds' in line:
             (start, end) = line['bounds']
@@ -267,7 +345,7 @@ def identifier_search(search, tree_name, needle, complete, fold_case):
         if q == sym:
             q = qualified
 
-        results = crossrefs.lookup(tree_name, sym)
+        results = expand_keys(crossrefs.lookup_merging(tree_name, sym))
         search.add_qualified_results(q, results, line_modifier)
 
 def get_json_search_results(tree_name, query):
@@ -323,7 +401,7 @@ def get_json_search_results(tree_name, query):
         search.set_path_filter(parsed.get('pathre'))
         symbols = parsed['symbol']
         title = 'Symbol ' + symbols
-        search.add_results(crossrefs.lookup(tree_name, symbols))
+        search.add_results(expand_keys(crossrefs.lookup_merging(tree_name, symbols)))
     elif 're' in parsed:
         path = parsed.get('pathre', '.*')
         (substr_results, timed_out) = codesearch.search(parsed['re'], fold_case, path, tree_name)
@@ -351,6 +429,129 @@ def get_json_search_results(tree_name, query):
         results = {}
 
     results = search.get(work_limit)
+
+    results['*title*'] = title
+    results['*timedout*'] = hit_timeout
+    return json.dumps(results)
+
+def identifier_sorch(search, tree_name, needle, complete, fold_case):
+    needle = re.sub(r'\\(.)', r'\1', needle)
+
+    pieces = re.split(r'\.|::', needle)
+    # If the last segment of the search needle is too short, return no results
+    # because we're worried that would return too many results.
+    if not complete and len(pieces[-1]) < 3:
+        return
+
+    # Fixup closure for use by add_qualified_results to reduce the range of the
+    # match's bounds to the prefix that was included in the search needle from
+    # the full bounds of the search result.  (So if the search was "foo::bar"
+    # and we matched "foo::bartab" and "foo::barhat", the idea I guess is that
+    # only the "bar" portion would be highlighted assuming the
+    # previously were referencing "bartab" and "barhat".)
+    def line_modifier(line):
+        if 'bounds' in line:
+            (start, end) = line['bounds']
+            end = start + len(pieces[-1])
+            line['bounds'] = [start, end]
+
+    ids = identifiers.lookup(tree_name, needle, complete, fold_case)
+    for (i, (qualified, sym)) in enumerate(ids):
+        if i > 500:
+            break
+
+        q = demangle(sym)
+        if q == sym:
+            q = qualified
+
+        sym_data = crossrefs.lookup_single_symbol(tree_name, sym)
+        if sym_data:
+            # XXX we could pass line_modifier here and have it be used; the
+            # logic probably still holds.  OTOH, having the full symbol that
+            # matched by prefix doesn't seem like the end of the world.
+            search.add_symbol(sym, q, sym_data)
+
+def get_json_sorch_results(tree_name, query):
+    '''
+    New RawSearchResults variant.  Initially supports 'symbol:', 'id:' and
+    default queries that only perform identifier searches and filename searches
+    (no fulltext).
+    '''
+    try:
+        search_string = query['q'][0]
+    except:
+        search_string = ''
+
+    try:
+        fold_case = query['case'][0] != 'true'
+    except:
+        fold_case = True
+
+    try:
+        regexp = query['regexp'][0] == 'true'
+    except:
+        regexp = False
+
+    try:
+        path_filter = query['path'][0]
+    except:
+        path_filter = ''
+
+    parsed = parse_search(search_string)
+
+    if path_filter:
+        parsed['pathre'] = parse_path_filter(path_filter)
+
+    if regexp:
+        if 'default' in parsed:
+            del parsed['default']
+        if 're' in parsed:
+            del parsed['re']
+        parsed['re'] = search_string
+
+    if 'default' in parsed and len(parsed['default']) == 0:
+        del parsed['default']
+
+    if is_trivial_search(parsed):
+        results = {}
+        return json.dumps(results)
+        
+    title = search_string
+    if not title:
+        title = 'Files ' + path_filter
+
+    search = RawSearchResults()
+
+    work_limit = False
+    hit_timeout = False
+
+    if 'symbol' in parsed:
+        search.set_path_filter(parsed.get('pathre'))
+        symbols = parsed['symbol']
+        title = 'Symbol ' + symbols
+        for symbol in symbols.split(','):
+            sym_data = crossrefs.lookup_single_symbol(tree_name, symbol)
+            if sym_data:
+                search.add_symbol(symbol, demangle(symbol), sym_data)
+    elif 'id' in parsed:
+        search.set_path_filter(parsed.get('pathre'))
+        identifier_search(search, tree_name, parsed['id'], complete=True, fold_case=fold_case)
+    elif 'default' in parsed:
+        work_limit = True
+        path = parsed.get('pathre', '.*')
+        #(substr_results, timed_out) = codesearch.search(parsed['default'], fold_case, path, tree_name)
+        #search.add_results({'Textual Occurrences': substr_results})
+        #hit_timeout |= timed_out
+        if 'pathre' not in parsed:
+            file_results = search_files(tree_name, parsed['default'])
+            search.add_paths(file_results)
+
+            identifier_sorch(search, tree_name, parsed['default'], complete=False, fold_case=fold_case)
+    else:
+        assert False
+        results = {}
+
+    results = search.get()
 
     results['*title*'] = title
     results['*timedout*'] = hit_timeout
@@ -419,11 +620,21 @@ class Handler(six.moves.SimpleHTTPServer.SimpleHTTPRequestHandler):
                 j = j.replace("</", "<\\/").replace("<script", "<\\script").replace("<!", "<\\!")
                 template = os.path.join(index_path(tree_name), 'templates/search.html')
                 self.generateWithTemplate({'{{BODY}}': j, '{{TITLE}}': 'Search'}, template)
+        elif len(path_elts) >= 2 and path_elts[1] == 'sorch':
+            tree_name = path_elts[0]
+            query = urlparse.parse_qs(url.query)
+            j = get_json_sorch_results(tree_name, query)
+            if 'json' in self.headers.getheader('Accept', ''):
+                self.generate(j, 'application/json')
+            else:
+                j = j.replace("</", "<\\/").replace("<script", "<\\script").replace("<!", "<\\!")
+                template = os.path.join(index_path(tree_name), 'templates/sorch.html')
+                self.generateWithTemplate({'{{BODY}}': j, '{{TITLE}}': 'Search'}, template)
         elif len(path_elts) >= 2 and path_elts[1] == 'define':
             tree_name = path_elts[0]
             query = six.moves.urllib.parse.parse_qs(url.query)
             symbol = query['q'][0]
-            results = crossrefs.lookup(tree_name, symbol)
+            results = expand_keys(crossrefs.lookup_merging(tree_name, symbol))
             definition = results['Definitions'][0]
             filename = definition['path']
             lineno = definition['lines'][0]['lno']
