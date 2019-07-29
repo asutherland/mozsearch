@@ -163,6 +163,8 @@ pub struct AnalysisSource {
     pub sym: Vec<String>,
     pub no_crossref: bool,
     pub nesting_range: SourceRange,
+    // XXX maybe there should be an Option<AnalysisMeta> here and we only attach it to definitions?
+    // Perhaps source records are the wrong thing here.
 }
 
 impl AnalysisSource {

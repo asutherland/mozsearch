@@ -1063,6 +1063,18 @@ public:
     LocRangeEndValid = 1 << 2
   };
 
+  // XXX Type annotating.
+  // QualType is the type class.  It has helpers like TagDecl via getAsTagDecl.
+  // ValueDecl exposes a getType() method.
+  //
+  // Arguably it makes sense to only expose types that Searchfox has definitions
+  // for as first-class.  Probably the way to go is like context/contextsym.
+  // We expose a "type" which is just a human-readable string which has no
+  // semantic purposes and is just a display string, plus then a "typesym" which
+  // we expose if we were able to map the type.
+  //
+  // Other meta-info: field offsets.  Ancestor types.
+
   // This is the only function that emits analysis JSON data. It should be
   // called for each identifier that corresponds to a symbol.
   void visitIdentifier(const char *Kind, const char *SyntaxKind,

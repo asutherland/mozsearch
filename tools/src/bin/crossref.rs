@@ -14,7 +14,7 @@ extern crate env_logger;
 
 extern crate tools;
 use tools::config;
-use tools::file_format::analysis::{read_analysis, read_target, AnalysisKind};
+use tools::file_format::analysis::{read_analysis, read_source, read_target, AnalysisKind};
 use tools::find_source_file;
 
 extern crate rustc_serialize;
@@ -46,6 +46,11 @@ impl ToJson for SearchResult {
         }
         Json::Object(obj)
     }
+}
+
+struct SymbolMeta {
+    /// The 2nd part of the syntax.  Ex: "function", "field", "type".
+    syntax_kind: Rc<String>,
 }
 
 fn split_scopes(id: &str) -> Vec<String> {
@@ -100,8 +105,10 @@ impl StringIntern {
 ///
 /// ## Implementation
 /// There are 2 phases of processing:
-/// 1. The analysis files are read, populating `table`, `pretty_table`, and `id_table`
-///    incrementally.
+/// 1. The analysis files are read, populating `table`, `pretty_table`, `id_table`, and
+///    `meta_table` incrementally.  Primary cross-reference information comes from target records,
+///    but the file is also processed for source records in order to populate `meta_table` with
+///    meta-information about the symbol.
 /// 2. The table is consumed with jumps generated as a byproduct.
 ///
 /// ### Memory Management
@@ -129,7 +136,8 @@ fn main() {
     let mut strings = StringIntern::new();
     let empty_string = strings.add("".to_string());
 
-    // Nested table hierarchy keyed by: [symbol, kind, path] with Vec as the leaf values.
+    // Nested table hierarchy keyed by: [symbol, kind, path] with Vec<SearchResult> as the leaf
+    // values.
     let mut table = BTreeMap::new();
     // Maps (raw) symbol to interned-pretty symbol string.  Each raw symbol is unique, but there
     // may be many raw symbols that map to the same pretty symbol string.
@@ -138,6 +146,8 @@ fn main() {
     // of the raw symbols that map to the pretty symbol.  Pretty symbols that start with numbers or
     // include whitespace are considered illegal and not included in the map.
     let mut id_table = BTreeMap::new();
+    // Maps (raw) symbol to
+    let mut meta_table = BTreeMap::new();
     // Not populated until phase 2 when we walk the above data-structures.
     let mut jumps = Vec::new();
 
@@ -265,6 +275,13 @@ fn main() {
                     let ct3 = ct2.entry(cp).or_insert(Vec::new());
                     ct3.push(consume_rec);
                 }
+            }
+        }
+
+        let source_analysis = read_analysis(&analysis_fname, &mut read_source);
+        for datum in source_analysis {
+            // pieces are all `AnalysisSource` instances.
+            for piece in datum.data {
             }
         }
     }
