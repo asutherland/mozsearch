@@ -163,6 +163,14 @@ pub struct AnalysisSource {
     pub sym: Vec<String>,
     pub no_crossref: bool,
     pub nesting_range: SourceRange,
+    /// For records that have an associated type (and aren't a type), this is the human-readable
+    /// representation of the type that may have all kinds of qualifiers that searchfox otherwise
+    /// ignores.  Not all records will have this type.
+    pub type_pretty: Option<String>,
+    /// For records that have an associated type, we may be able to map the type to a searchfox
+    /// symbol, and if so, this is that.  Even if the record has a `type_pretty`, it may not have a
+    /// type_sym.
+    pub type_sym: Option<String>,
     // XXX maybe there should be an Option<AnalysisMeta> here and we only attach it to definitions?
     // Perhaps source records are the wrong thing here.
 }
@@ -190,6 +198,31 @@ impl AnalysisSource {
         self.sym.sort();
         self.sym.dedup();
         self.nesting_range.union(other.nesting_range);
+        // We regrettably have no guarantee that the types are the same, so just pick a type when
+        // we have it.
+        // I tried to make this idiomatic using "or" to overwrite the type, but it got ugly.
+        if let Some(type_pretty) = other.type_pretty {
+            self.type_pretty.get_or_insert(type_pretty);
+        }
+        if let Some(type_sym) = other.type_sym {
+            self.type_sym.get_or_insert(type_sym);
+        }
+    }
+
+    /// Indicates whether this is a "def" or not.  Note that this is determined by consulting the
+    /// `syntax` which is empty for locals (where no_crossref=true).  If you really care if
+    /// something is a def or not, you might want a target record (which always has a kind) or a
+    /// new type of record.
+    pub fn is_def(&self) -> bool {
+        return self.syntax.contains(&String::from("def"));
+    }
+
+    /// Source records' "pretty" field is prefixed with their SyntaxKind.  It's also placed in the
+    /// "syntax" sorted array, but that string/array ends up empty when no_crossref is set, so
+    /// it's best to get it from
+    pub fn get_syntax_kind(&self) -> Option<&str> {
+        // It's a given that we're using a standard ASCII space character.
+        return self.pretty.split(' ').next();
     }
 }
 
@@ -213,6 +246,20 @@ impl fmt::Display for AnalysisSource {
                 self.nesting_range.start_col,
                 self.nesting_range.end_lineno,
                 self.nesting_range.end_col
+            )?;
+        }
+        if let Some(type_pretty) = &self.type_pretty {
+            write!(
+                formatter,
+                r#","type":"{}""#,
+                type_pretty
+            )?;
+        }
+        if let Some(type_sym) = &self.type_sym {
+            write!(
+                formatter,
+                r#","typesym":"{}""#,
+                type_sym
             )?;
         }
         Ok(())
@@ -455,12 +502,23 @@ pub fn read_source(obj: &Object) -> Option<AnalysisSource> {
         },
     };
 
+    // We need to go from Option<Json> to Option<String>.
+    let to_str_opt = |oj: &Option<&Json>| match oj {
+        Some(j) => Some(j.as_string().unwrap().to_string()),
+        None => None
+    };
+
+    let type_pretty = to_str_opt(&obj.get("type"));
+    let type_sym = to_str_opt(&obj.get("typesym"));
+
     Some(AnalysisSource {
         pretty,
         sym,
         syntax,
         no_crossref,
         nesting_range,
+        type_pretty,
+        type_sym,
     })
 }
 

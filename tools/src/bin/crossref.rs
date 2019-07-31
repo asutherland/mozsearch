@@ -48,9 +48,19 @@ impl ToJson for SearchResult {
     }
 }
 
+/// SymbolMeta is extracted from the "def" AnalysisSource records for a symbol and stored in the
+/// meta_table for the symbol.
 struct SymbolMeta {
     /// The 2nd part of the syntax.  Ex: "function", "field", "type".
     syntax_kind: Rc<String>,
+}
+
+impl ToJson for SymbolMeta {
+    fn to_json(&self) -> Json {
+        let mut obj = BTreeMap::new();
+        obj.insert("syntax".to_string(), self.syntax_kind.to_json());
+        Json::Object(obj)
+    }
 }
 
 fn split_scopes(id: &str) -> Vec<String> {
@@ -146,7 +156,9 @@ fn main() {
     // of the raw symbols that map to the pretty symbol.  Pretty symbols that start with numbers or
     // include whitespace are considered illegal and not included in the map.
     let mut id_table = BTreeMap::new();
-    // Maps (raw) symbol to
+    // Maps (raw) symbol to `SymbolMeta` info for this symbol.  This information is currently
+    // extracted from the source records during an additional pass of the analysis file, looking
+    // only at defs.  However, in the future, this will likely come from a new type of record.
     let mut meta_table = BTreeMap::new();
     // Not populated until phase 2 when we walk the above data-structures.
     let mut jumps = Vec::new();
@@ -282,6 +294,15 @@ fn main() {
         for datum in source_analysis {
             // pieces are all `AnalysisSource` instances.
             for piece in datum.data {
+                if piece.is_def() {
+                    if let Some(syntax_kind) = piece.get_syntax_kind() {
+                        meta_table.entry(strings.add(piece.sym[0].clone())).or_insert_with(|| {
+                            SymbolMeta {
+                                syntax_kind: strings.add(syntax_kind.to_string())
+                            }
+                        });
+                    }
+                }
             }
         }
     }
@@ -308,6 +329,11 @@ fn main() {
             };
             kindmap.insert(kindstr.to_string(), Json::Array(result));
         }
+        // Put the metadata in there too.
+        if let Some(meta) = meta_table.get(&id) {
+            kindmap.insert("meta".to_string(), meta.to_json());
+        }
+
         let kindmap = Json::Object(kindmap);
 
         let _ = outputf.write_all(format!("{}\n{}\n", id, kindmap.to_string()).as_bytes());
