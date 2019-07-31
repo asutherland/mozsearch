@@ -53,12 +53,16 @@ impl ToJson for SearchResult {
 struct SymbolMeta {
     /// The 2nd part of the syntax.  Ex: "function", "field", "type".
     syntax_kind: Rc<String>,
+    type_pretty: Rc<String>,
+    type_sym: Rc<String>,
 }
 
 impl ToJson for SymbolMeta {
     fn to_json(&self) -> Json {
         let mut obj = BTreeMap::new();
         obj.insert("syntax".to_string(), self.syntax_kind.to_json());
+        obj.insert("type".to_string(), self.type_pretty.to_json());
+        obj.insert("typesym".to_string(), self.type_sym.to_json());
         Json::Object(obj)
     }
 }
@@ -295,10 +299,12 @@ fn main() {
             // pieces are all `AnalysisSource` instances.
             for piece in datum.data {
                 if piece.is_def() {
-                    if let Some(syntax_kind) = piece.get_syntax_kind() {
+                    if piece.get_syntax_kind().is_some() {
                         meta_table.entry(strings.add(piece.sym[0].clone())).or_insert_with(|| {
                             SymbolMeta {
-                                syntax_kind: strings.add(syntax_kind.to_string())
+                                syntax_kind: strings.add(piece.get_syntax_kind().unwrap().to_string()),
+                                type_pretty: strings.add(piece.type_pretty.unwrap_or("".to_string())),
+                                type_sym: strings.add(piece.type_sym.unwrap_or("".to_string())),
                             }
                         });
                     }
