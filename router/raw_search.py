@@ -84,6 +84,10 @@ class RawSearchResults(object):
         # (path, lines) pair at the end, so it's really just the structure of
         # [pathkind, kind] that we need to create.
         for kind, path_line_pairs in data.items():
+            if kind == 'meta':
+                sym_info['meta'] = path_line_pairs
+                continue
+
             for path_lines in path_line_pairs:
                 path = path_lines['path']
                 lines = path_lines['lines']
