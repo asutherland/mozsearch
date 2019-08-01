@@ -20,6 +20,14 @@
 #include "big_header.h"
 #include "subdir/header@with,many^strange~chars.h"
 
+/**
+ * It's not local, it's global.  And it's got the documentation kids crave.
+ *
+ * Including:
+ * - Bullet 1
+ * - Bullet 2
+ * - And more!
+ */
 class GlobalContext {
   public:
 
@@ -131,6 +139,10 @@ namespace outerNS {
 
 #define HUMAN_HP 100
 
+/**
+ * Root abstraction in simulation hierarchy.  Humans, cats, and couches are all
+ * things.
+ */
 class Thing {
   protected:
   // Finally, an example class that could evolve into a MUD!
@@ -144,6 +156,10 @@ class Thing {
   bool mDefunct;
 
   public:
+  /**
+   * Constructor with responsibility for HP and whether something has been
+   * destroyed.
+   */
   Thing(int baseHP)
   : mHP(baseHP)
   , mDefunct(false) {
@@ -162,6 +178,11 @@ class Thing {
   }
 };
 
+/// Nothing to see or do here!
+///
+/// For real!
+///
+/// Stop looking!
 void Thing::ignore() {
   // ignore
   // i g n o r e
@@ -184,6 +205,17 @@ class Human: public Thing {
   }
 };
 
+/**
+ * Slightly irradiated humans.
+ *
+ * Means of irradiation include:
+ * - Direct irradiation from hanging out near nuclear power plants.
+ * - Direct irradiation from unethical experimentation.
+ * - Transitive closure of living things that have  been hanging out near
+ *   nuclear power plants or subjected to unethical experimentation and have in
+ *   turn passed on this radiation and its super-powered goodness.
+ * - Just an alien that passes for human.
+ */
 class Superhero : public Human {
   public:
 
@@ -201,6 +233,9 @@ class Superhero : public Human {
   }
 };
 
+/**
+ * Seating for one or more humans.  Natural enemy of the cat.
+ */
 class Couch : public Thing {
   public:
 
@@ -217,6 +252,9 @@ class Couch : public Thing {
   }
 };
 
+/**
+ * Small mammals.
+ */
 class OuterCat : Thing {
   private:
   // Cat secrets!
