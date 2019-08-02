@@ -219,7 +219,11 @@ impl AnalysisSource {
 
     /// Source records' "pretty" field is prefixed with their SyntaxKind.  It's also placed in the
     /// "syntax" sorted array, but that string/array ends up empty when no_crossref is set, so
-    /// it's best to get it from
+    /// it's currently easiest to get it from here.
+    ///
+    /// XXX note that the clang indexer can generate "enum constant" syntax kinds that possess a
+    /// space, but that just means we lose the "constant" bit, not that we get confused about the
+    /// pretty name.
     pub fn get_syntax_kind(&self) -> Option<&str> {
         // It's a given that we're using a standard ASCII space character.
         return self.pretty.split(' ').next();
