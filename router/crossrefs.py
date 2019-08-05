@@ -68,7 +68,7 @@ def lookup_merging(tree_name, symbols):
         result = json.loads(data)
 
         for (k, v) in result.items():
-            if k == 'meta':
+            if k == 'meta' or k == 'consumes':
                 continue
             results[k] = results.get(k, []) + result[k]
 

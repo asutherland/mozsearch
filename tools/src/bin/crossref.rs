@@ -164,6 +164,8 @@ fn main() {
     // extracted from the source records during an additional pass of the analysis file, looking
     // only at defs.  However, in the future, this will likely come from a new type of record.
     let mut meta_table = BTreeMap::new();
+    // Maps (raw) symbol to a BTreeSet of the (raw) symbols it consumes.
+    let mut consumes_table = BTreeMap::new();
     // Not populated until phase 2 when we walk the above data-structures.
     let mut jumps = Vec::new();
 
@@ -202,94 +204,70 @@ fn main() {
         for datum in analysis {
             // pieces are all `AnalysisTarget` instances.
             for piece in datum.data {
-                // If this is a "use" with a contextsym, then we want to reflect it into a
-                // "consume".  Because the table stuff below does a bunch of borrowing, and asuth
-                // has not yet reached rust zen, we hackily wrap the normal logic in a block below
-                // and introduce maybe_consume_rec as a boolean indicator of our need to create a
-                // "consume" record and the data payload to also insert.
-                let mut maybe_consume_rec : Option<(Rc<String>, SearchResult)> = None;
+                let sym = strings.add(piece.sym.to_owned());
+                let contextsym = strings.add(piece.contextsym.to_owned());
+                let t1 = table.entry(Rc::clone(&sym)).or_insert(BTreeMap::new());
+                let t2 = t1.entry(piece.kind.clone()).or_insert(BTreeMap::new());
+                let p: &str = &path;
+                let t3 = t2.entry(p).or_insert(Vec::new());
+                let lineno = (datum.loc.lineno - 1) as usize;
+                if lineno >= lines.len() {
+                    print!("Bad line number in file {} (line {})\n", path, lineno);
+                    continue;
+                }
 
-                {
-                    let sym = strings.add(piece.sym.to_owned());
-                    let t1 = table.entry(Rc::clone(&sym)).or_insert(BTreeMap::new());
-                    let t2 = t1.entry(piece.kind.clone()).or_insert(BTreeMap::new());
-                    let p: &str = &path;
-                    let t3 = t2.entry(p).or_insert(Vec::new());
-                    let lineno = (datum.loc.lineno - 1) as usize;
-                    if lineno >= lines.len() {
-                        print!("Bad line number in file {} (line {})\n", path, lineno);
-                        continue;
-                    }
+                let (line, offset) = lines[lineno].clone();
 
-                    let (line, offset) = lines[lineno].clone();
+                let peek_start = piece.peek_range.start_lineno;
+                let peek_end = piece.peek_range.end_lineno;
+                let mut peek_lines = String::new();
+                if peek_start != 0 {
+                    // The offset of the first non-whitespace
+                    // character of the first line of the peek
+                    // lines. We want all the lines in the peek lines
+                    // to be cut to this offset.
+                    let left_offset = lines[(peek_start - 1) as usize].1;
 
-                    let peek_start = piece.peek_range.start_lineno;
-                    let peek_end = piece.peek_range.end_lineno;
-                    let mut peek_lines = String::new();
-                    if peek_start != 0 {
-                        // The offset of the first non-whitespace
-                        // character of the first line of the peek
-                        // lines. We want all the lines in the peek lines
-                        // to be cut to this offset.
-                        let left_offset = lines[(peek_start - 1) as usize].1;
+                    for peek_line_index in peek_start .. peek_end + 1 {
+                        let &(ref peek_line, peek_offset) = &lines[(peek_line_index - 1) as usize];
 
-                        for peek_line_index in peek_start .. peek_end + 1 {
-                            let &(ref peek_line, peek_offset) = &lines[(peek_line_index - 1) as usize];
-
-                            for _i in left_offset .. peek_offset {
-                                peek_lines.push(' ');
-                            }
-                            peek_lines.push_str(&peek_line);
-                            peek_lines.push('\n');
+                        for _i in left_offset .. peek_offset {
+                            peek_lines.push(' ');
                         }
-                    }
-
-                    let sr = SearchResult {
-                        lineno: datum.loc.lineno,
-                        bounds: (datum.loc.col_start - offset, datum.loc.col_end - offset),
-                        line: line,
-                        context: strings.add(piece.context),
-                        contextsym: strings.add(piece.contextsym),
-                        peek_lines: strings.add(peek_lines),
-                    };
-
-                    // Idempotently insert the symbol -> pretty symbol mapping into `pretty_table`.
-                    let pretty = strings.add(piece.pretty.to_owned());
-                    pretty_table.insert(Rc::clone(&sym), Rc::clone(&pretty));
-
-                    // If this is a use and there's a contextsym, we want to create a "Consume"
-                    // entry under the contextsym.  We also want to invert the use of "context"
-                    // to be the symbol in question; it's not useful to name the context symbol
-                    // redundantly when it's the symbol we're attaching data to.
-                    if piece.kind == AnalysisKind::Use && !sr.contextsym.is_empty() {
-                        maybe_consume_rec = Some((Rc::clone(&sr.contextsym), SearchResult {
-                            lineno: sr.lineno,
-                            bounds: sr.bounds.clone(),
-                            line: Rc::clone(&sr.line),
-                            context: Rc::clone(&pretty),
-                            contextsym: Rc::clone(&sym),
-                            peek_lines: Rc::clone(&sr.peek_lines),
-                        }));
-                    }
-
-                    t3.push(sr);
-
-                    // Idempotently insert the pretty symbol -> symbol mapping as long as the pretty
-                    // symbol looks sane.  (Whitespace breaks the `identifiers` file's text format, so
-                    // we can't include them.)
-                    let ch = piece.sym.chars().nth(0).unwrap();
-                    if !(ch >= '0' && ch <= '9') && !piece.sym.contains(' ') {
-                        let t1 = id_table.entry(pretty).or_insert(BTreeSet::new());
-                        t1.insert(sym);
+                        peek_lines.push_str(&peek_line);
+                        peek_lines.push('\n');
                     }
                 }
 
-                if let Some((put_sym, consume_rec)) = maybe_consume_rec {
-                    let ct1 = table.entry(put_sym).or_insert(BTreeMap::new());
-                    let ct2 = ct1.entry(AnalysisKind::Consume).or_insert(BTreeMap::new());
-                    let cp: &str = &path;
-                    let ct3 = ct2.entry(cp).or_insert(Vec::new());
-                    ct3.push(consume_rec);
+                // Idempotently insert the symbol -> pretty symbol mapping into `pretty_table`.
+                let pretty = strings.add(piece.pretty.to_owned());
+                pretty_table.insert(Rc::clone(&sym), Rc::clone(&pretty));
+
+                // If this is a use and there's a contextsym, we want to create a "Consume"
+                // entry under the contextsym.  We also want to invert the use of "context"
+                // to be the symbol in question; it's not useful to name the context symbol
+                // redundantly when it's the symbol we're attaching data to.
+                if piece.kind == AnalysisKind::Use && !contextsym.is_empty() {
+                    let consumed = consumes_table.entry(Rc::clone(&contextsym)).or_insert(BTreeSet::new());
+                    consumed.insert(Rc::clone(&sym));
+                }
+
+                t3.push(SearchResult {
+                    lineno: datum.loc.lineno,
+                    bounds: (datum.loc.col_start - offset, datum.loc.col_end - offset),
+                    line: line,
+                    context: strings.add(piece.context),
+                    contextsym: contextsym,
+                    peek_lines: strings.add(peek_lines),
+                });
+
+                // Idempotently insert the pretty symbol -> symbol mapping as long as the pretty
+                // symbol looks sane.  (Whitespace breaks the `identifiers` file's text format, so
+                // we can't include them.)
+                let ch = piece.sym.chars().nth(0).unwrap();
+                if !(ch >= '0' && ch <= '9') && !piece.sym.contains(' ') {
+                    let t1 = id_table.entry(pretty).or_insert(BTreeSet::new());
+                    t1.insert(sym);
                 }
             }
         }
@@ -331,9 +309,23 @@ fn main() {
                 AnalysisKind::Assign => "assignments",
                 AnalysisKind::Decl => "decls",
                 AnalysisKind::Idl => "idl",
-                AnalysisKind::Consume => "consumes",
             };
             kindmap.insert(kindstr.to_string(), Json::Array(result));
+        }
+        if let Some(consumed_syms) = consumes_table.get(&id) {
+            let mut consumed = Vec::new();
+            for consumed_sym in consumed_syms {
+                if let Some(meta) = meta_table.get(consumed_sym) {
+                    let mut obj = BTreeMap::new();
+                    obj.insert("sym".to_string(), consumed_sym.to_json());
+                    if let Some(pretty) = pretty_table.get(consumed_sym) {
+                        obj.insert("pretty".to_string(), pretty.to_json());
+                    }
+                    obj.insert("syntax".to_string(), meta.syntax_kind.to_json());
+                    consumed.push(Json::Object(obj));
+                }
+            }
+            kindmap.insert("consumes".to_string(), consumed.to_json());
         }
         // Put the metadata in there too.
         if let Some(meta) = meta_table.get(&id) {

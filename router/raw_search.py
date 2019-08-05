@@ -87,7 +87,10 @@ class RawSearchResults(object):
             if kind == 'meta':
                 sym_info['meta'] = path_line_pairs
                 continue
-
+            if kind == 'consumes':
+                sym_info['consumes'] = path_line_pairs
+                continue
+            
             for path_lines in path_line_pairs:
                 path = path_lines['path']
                 lines = path_lines['lines']

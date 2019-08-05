@@ -93,11 +93,6 @@ pub enum AnalysisKind {
     Assign,
     Decl,
     Idl,
-    /// This is a derived analysis type used for cross-referencing purposes that could also be
-    /// thought of as "calls".  Consume records are derived by taking target "Use" kinds and
-    /// grouping them by their contextsym.  They are out-edges from a symbol that otherwise only
-    /// has in-edges.
-    Consume,
 }
 
 impl fmt::Display for AnalysisKind {
@@ -108,7 +103,6 @@ impl fmt::Display for AnalysisKind {
             AnalysisKind::Assign => "assign",
             AnalysisKind::Decl => "decl",
             AnalysisKind::Idl => "idl",
-            AnalysisKind::Consume => "consume",
         };
         formatter.write_str(str)
     }
