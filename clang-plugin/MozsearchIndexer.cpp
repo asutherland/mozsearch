@@ -203,6 +203,7 @@ public:
                      const MacroDefinition &Md) override;
   virtual void Ifndef(SourceLocation Loc, const Token &Tok,
                       const MacroDefinition &Md) override;
+  virtual void EndOfMainFile() override;
 };
 
 class IndexConsumer : public ASTConsumer,
@@ -2064,6 +2065,49 @@ public:
       visitIdentifier("use", "macro", Ident->getName(), Loc, Mangled);
     }
   }
+
+  void visitMacroExpansion(SourceRange range) {
+    SourceLocation begin = range.getBegin();
+    SourceLocation spellBegin = SM.getSpellingLoc(begin);
+
+        // Find the file positions corresponding to the token.
+    unsigned StartOffset = SM.getFileOffset(spellBegin);
+    unsigned EndOffset =
+      StartOffset + Lexer::MeasureTokenLength(spellBegin, SM, CI.getLangOpts());
+
+    std::string LocStr = locationToString(spellBegin, EndOffset - StartOffset);
+
+    JSONFormatter Fmt;
+    Fmt.add("loc", LocStr);
+    Fmt.add("preprocessor", 1);
+
+    std::string Expanded = lineRangeToString(range);
+    if (Expanded.empty()) {
+      //return;
+    }
+
+    Fmt.add("expanded", Expanded);
+
+    std::string Buf;
+
+    Fmt.format(Buf);
+    FileInfo *F = getFileInfo(spellBegin);
+    F->Output.push_back(std::move(Buf));
+  }
+
+  void processMacroExpansions() {
+    Preprocessor &PP = CI.getPreprocessor();
+    PreprocessingRecord *PR = PP.getPreprocessingRecord();
+    if (!PR) {
+      return;
+    }
+
+    for (auto It = PR->local_begin(); It != PR->local_end(); It++) {
+      PreprocessedEntity *ent = *It;
+      SourceRange range = ent->getSourceRange();
+      visitMacroExpansion(range);
+    }
+  }
 };
 
 void PreprocessorHook::FileChanged(SourceLocation Loc, FileChangeReason Reason,
@@ -2139,20 +2183,34 @@ void PreprocessorHook::Ifndef(SourceLocation Loc, const Token &Tok,
   Indexer->macroUsed(Tok, Md.getMacroInfo());
 }
 
+void PreprocessorHook::EndOfMainFile() {
+  //Indexer->processMacroExpansions();
+}
+
 class IndexAction : public PluginASTAction {
 protected:
+  IndexConsumer *Indexer;
+
   std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
-                                                 llvm::StringRef F) {
-    return make_unique<IndexConsumer>(CI);
+                                                 llvm::StringRef F) override {
+    std::unique_ptr<IndexConsumer> indexer = make_unique<IndexConsumer>(CI);
+    Indexer = indexer.get();
+    return indexer;
+  }
+
+  void EndSourceFileAction() override {
+    Indexer->processMacroExpansions();
+    Indexer = nullptr;
   }
 
   bool ParseArgs(const CompilerInstance &CI,
-                 const std::vector<std::string> &Args) {
+                 const std::vector<std::string> &Args) override {
     if (Args.size() != 3) {
       DiagnosticsEngine &D = CI.getDiagnostics();
       unsigned DiagID = D.getCustomDiagID(
           DiagnosticsEngine::Error,
           "Need arguments for the source, output, and object directories");
+
       D.Report(DiagID);
       return false;
     }

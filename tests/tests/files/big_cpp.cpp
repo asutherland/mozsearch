@@ -46,6 +46,12 @@ class GlobalContext {
       return true;
     }
 
+    DEPTH_ONE(rval);
+
+    DEPTH_TWO(rval);
+
+    DEPTH_THREE(rval);
+
     // BEEP BEEP BEEP BEEP
     // BEEP           BEEP
     // BEEP           BEEP

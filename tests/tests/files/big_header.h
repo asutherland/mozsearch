@@ -5,6 +5,18 @@
 
 extern "C" void i_was_declared_in_the_header();
 
+#define DEPTH_ONE(foo) \
+foo++;
+
+#define DEPTH_TWO(bar) \
+bar--; \
+DEPTH_ONE(bar);
+
+#define DEPTH_THREE(baz) \
+baz++; \
+DEPTH_TWO(baz); \
+DEPTH_ONE(baz);
+
 void
 header_foo();
 
