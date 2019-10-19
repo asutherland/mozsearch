@@ -134,13 +134,13 @@ expression: "&fb.contents"
    that cats and dogs work.
  - Not using templates.
  </td>
-          <td><a href="/tests/source/big_cpp.cpp">9734</a></td>
+          <td><a href="/tests/source/big_cpp.cpp">9937</a></td>
         </tr>
 
         <tr>
           <td><a href="/tests/source/big_header.h" class="icon icon-h">big_header.h</a></td>
           <td class="description"><a href="/tests/source/big_header.h" title=""></td>
-          <td><a href="/tests/source/big_header.h">9508</a></td>
+          <td><a href="/tests/source/big_header.h">9868</a></td>
         </tr>
 
         <tr>

@@ -9,9 +9,17 @@ expression: "&json_results"
     "pretty": "GlobalContext",
     "sym": "T_GlobalContext",
     "kind": "class",
-    "sizeBytes": 1,
+    "sizeBytes": 8,
     "supers": [],
     "methods": [
+      {
+        "pretty": "GlobalContext::dance_mfunc",
+        "sym": "_ZN13GlobalContext11dance_mfuncEv",
+        "props": [
+          "instance",
+          "user"
+        ]
+      },
       {
         "pretty": "GlobalContext::decideBooleanTrait",
         "sym": "_ZN13GlobalContext18decideBooleanTraitEv",
@@ -53,6 +61,21 @@ expression: "&json_results"
         ]
       }
     ],
-    "fields": []
+    "fields": [
+      {
+        "pretty": "GlobalContext::myfield_foo",
+        "sym": "F_<T_GlobalContext>_myfield_foo",
+        "type": "int",
+        "offsetBytes": 0,
+        "sizeBytes": 4
+      },
+      {
+        "pretty": "GlobalContext::myfield_bar",
+        "sym": "F_<T_GlobalContext>_myfield_bar",
+        "type": "int",
+        "offsetBytes": 4,
+        "sizeBytes": 4
+      }
+    ]
   }
 ]

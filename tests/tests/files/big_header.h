@@ -17,6 +17,19 @@ baz++; \
 DEPTH_TWO(baz); \
 DEPTH_ONE(baz);
 
+#define MAKE_FIELD(name) \
+int myfield_##name = 0;
+
+#define MAKE_FUNC_START(name) \
+void dance_##name() { \
+  int blah;
+
+#define MAKE_FUNC_BODY_LINE(delta) \
+  blah += delta;
+
+#define MAKE_FUNC_END() \
+}
+
 void
 header_foo();
 

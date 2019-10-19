@@ -24,6 +24,14 @@
 class GlobalContext {
   public:
 
+  MAKE_FIELD(foo);
+  MAKE_FIELD(bar);
+  
+  MAKE_FUNC_START(mfunc)
+  MAKE_FUNC_BODY_LINE(2)
+  MAKE_FUNC_BODY_LINE(4)
+  MAKE_FUNC_END()
+
   static bool decideBooleanTrait() {
     int rval = rand();
 
