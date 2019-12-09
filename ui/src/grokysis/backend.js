@@ -1,7 +1,5 @@
 import BackendDB from './backend/db.js';
-import CrashFetcher from './backend/crashes/crash_fetcher.js';
 import SearchDriver from './backend/search_driver.js';
-import loadTriceLog from './backend/trice/loader.js';
 
 /**
  * This backend doesn't actually live in a worker due to our need to do HTML
@@ -21,14 +19,18 @@ class BackendRouter {
 
   _onMessage(evt) {
     const data = evt.data;
-    console.log("backend got:", data);
+    if (window.DEBUG_GROKYSIS_BRIDGE) {
+      console.log("backend got:", data);
+    }
     const expectsReply = !!data.msgId;
 
     const { type, payload } = data;
     const handlerName = "msg_" + type;
 
     try {
-      console.log("processing", type, "message, reply expected?", expectsReply, data);
+      if (window.DEBUG_GROKYSIS_BRIDGE) {
+        console.log("processing", type, "message, reply expected?", expectsReply, data);
+      }
       // Pass the msgId for the second arg for tracing purposes.
       const result = this[handlerName](payload, data.msgId);
       if (expectsReply) {
@@ -75,7 +77,6 @@ class BackendRouter {
   async msg_init({ name }) {
     const treeName = name;
     this.searchDriver = new SearchDriver({ treeName });
-    this.crashFetcher = new CrashFetcher();
 
     this.db = new BackendDB({ name });
 
@@ -86,30 +87,12 @@ class BackendRouter {
   //////////////////////////////////////////////////////////////////////////////
   // SearchDriver hookup
 
-  msg_search(searchArgs, msgId) {
+  msg_search(searchArgs/*, msgId */) {
     return this.searchDriver.performSearch(searchArgs);
   }
 
   msg_fetchFile(fetchArgs) {
     return this.searchDriver.fetchFile(fetchArgs);
-  }
-
-  //////////////////////////////////////////////////////////////////////////////
-  // Crashes
-  async msg_fetchCrashById(crashId) {
-    const pRaw = this.crashFetcher.fetchProcessedCrashById(crashId);
-    const pRawMeta = this.crashFetcher.fetchRawCrashMetaById(crashId);
-
-    return {
-      raw: await pRaw,
-      rawMeta: await pRawMeta
-    };
-  }
-
-  //////////////////////////////////////////////////////////////////////////////
-  // TriceLog
-  msg_loadTriceLog(loadArgs/*, msgId*/) {
-    return loadTriceLog(loadArgs);
   }
 
   //////////////////////////////////////////////////////////////////////////////

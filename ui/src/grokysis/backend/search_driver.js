@@ -1,18 +1,8 @@
-//const HACKY_SERVER_BASE = 'http://localhost:3000';
-// Uh, use relative URL's since we expect it to be us doing the serving right
-// now.  (Or more specifically our server.js.)
-const HACKY_SERVER_BASE = '';
-// Base URL for proxied search queries.
-const HACKY_SERVER_SEARCH = `${HACKY_SERVER_BASE}/sf/search`;
-// Base URL to get the HTML syntax-highlighted code plus node-sitter AST tree
-// for specific source files.
-const HACKY_SERVER_SOURCE_BASE = `${HACKY_SERVER_BASE}/sf/spage`;
-
 const ONE_HOUR_IN_MILLIS = 60 * 60 * 1000;
 
 /**
- * Low-level wrapper for notional access to searchfox, but actually our hacky
- * node.js "server.js" script.
+ * Largely moot wrapper around searchfox queries, rendered obsolete as
+ * enhancements have been made directly to the server.
  */
 export default class SearchDriver {
   constructor({ treeName }) {
@@ -24,7 +14,8 @@ export default class SearchDriver {
   }
 
   async _initCache() {
-    this.cache = await caches.open(this.cacheName);
+    // There's no longer a need to cache things.
+    this.cache = null; // await caches.open(this.cacheName);
   }
 
   /**
@@ -41,9 +32,9 @@ export default class SearchDriver {
    * keys() as well.  NB: keys() based enumeration can cause massive explosions
    * if the cache has somehow ended up with a ton of entries.
    */
-  async _cachingFetch(url) {
+  async _cachingFetch(url, opts) {
     // super-hacky cache clearing without opening devtools like a sucker.
-    if (/NUKECACHE/.test(url)) {
+    if (this.cache && /NUKECACHE/.test(url)) {
       this.cache = null;
       await caches.delete(this.cacheName);
       this.cache = await caches.open(this.cacheName);
@@ -72,8 +63,10 @@ export default class SearchDriver {
       }
     }
 
-    const resp = await fetch(url);
-    this.cache.put(url, resp.clone());
+    const resp = await fetch(url, opts);
+    if (this.cache) {
+      this.cache.put(url, resp.clone());
+    }
 
     return resp;
   }
@@ -85,7 +78,13 @@ export default class SearchDriver {
     params.set('regexp', 'false');
     params.set('path', '');
     const resp = await this._cachingFetch(
-      `${HACKY_SERVER_SEARCH}?${params.toString()}`);
+      `/${this.treeName}/sorch?${params.toString()}`,
+      {
+        headers: {
+          'Accept': 'application/json'
+        }
+      }
+    );
     const result = await resp.json();
     return result;
   }
@@ -95,7 +94,7 @@ export default class SearchDriver {
    * caching semantics.
    */
   async fetchFile({ path }) {
-    const url = `${HACKY_SERVER_SOURCE_BASE}/${path}`;
+    const url = `/${this.treeName}/source/${path}`;
 
     const resp = await this._cachingFetch(url);
     const data = await resp.json();

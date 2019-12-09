@@ -60,9 +60,6 @@ function boundsIntersect(a, b) {
  *
  * The following methods are expected to be used in the following ways by the
  * UI:
- * - asyncLookupSymbolAtLocation: Used when clicking on a raw searchfox search
- *   result.  (We don't have the underlying symbol in that case, we have to
- *   get it out of the loaded file.)
  * - lookupRawSymbol: Used when clicking on a syntax-highlighted searchfox
  *   symbol.  Although we plan to have the SymbolInfo at the time of HTML
  *   generation, it doesn't seem worth retaining/entraining.
@@ -94,6 +91,14 @@ export default class KnowledgeBase {
     this.filesByPath = new Map();
 
     this.fileAnalyzer = null; // new FileAnalyzer(this);
+
+    /**
+     * The maximum number of edges something can have before we decide that
+     * we're not going to traverse the edges.  The concern is that nothing good
+     * can come of automatically fetching information on every symbol that uses
+     * RefPtr.
+     */
+    this.EDGE_SANITY_LIMIT = 32;
   }
 
   /**
@@ -142,32 +147,6 @@ export default class KnowledgeBase {
   }
 
   /**
-   * Given the relevant bits of a searchfox search that identify a symbol at a
-   * location in a file, asynchronously process the file (if not already
-   * processed), locate the specific symbol, and return it.  The Symbol may
-   * continue to undergo asynchronous analysis when it is returned, as we are
-   * returning the symbol as soon as we know its raw name.
-   *
-   * Note that when inheritance gets involved, searchfox likes to conflate
-   * things, so we may actually find multiple raw symbols being referenced at a
-   * given point.  In that case we'll try and figure out what the most specific
-   * symbol is and return that, and have that symbol reference the other
-   * symbol(s) via some type of relationship.
-   */
-  async asyncLookupSymbolAtLocation({ path, lineNum, bounds }) {
-    const fi = await this.ensureFileAnalysis(path);
-    const zbLineNum = lineNum - 1;
-    const synLine = fi.lineToSymbolBounds[zbLineNum];
-    for (const symBounds of synLine) {
-      if (boundsIntersect(symBounds.bounds, bounds)) {
-        return symBounds.symInfo;
-      }
-    }
-    return null;
-  }
-
-
-  /**
    * TODO: Modernize this mechanism to load all of the definitions from a file
    * in a single go.
    *
@@ -203,21 +182,35 @@ export default class KnowledgeBase {
     return fi;
   }
 
+  /**
+   * Asynchronously analyze a symbol by performing a search (at most once) and
+   * processing its results.  Additionally, the analysis can recursively analyze
+   * other discovered symbols to a maximum depth of `analyzeHops`.
+   *
+   * The recursive hops mechanism was originally essential because in order to
+   * know the type of a linked symbol we needed to search it.  That information
+   * is now direclty available as part of the search.  Using hops is still
+   * potentially useful for graph-drawing logic.  (Although graph drawing logic
+   * would usually also want some other means of loading symbols, such as
+   * locating all the members of a class or all the symbols in a compilation
+   * unit.)
+   */
   async ensureSymbolAnalysis(symInfo, analyzeHops) {
     let clampedLevel = Math.min(2, analyzeHops);
     if (symInfo.analyzed) {
-      // XXX so the hops mechanism is more than a little sketchy right now.
-      // The main idea is that for our call graph we need to know the syntax
-      // kinds of the connected symbols, so we need an analysis depth.
       if (symInfo.analyzed < clampedLevel) {
         symInfo.analyzed = clampedLevel;
 
         // we need to trigger analysis for all symbols in the graph.
-        for (let otherSym of symInfo.outEdges) {
-          this.ensureSymbolAnalysis(otherSym, analyzeHops - 1);
+        if (symInfo.outEdges.size < this.EDGE_SANITY_LIMIT) {
+          for (let otherSym of symInfo.outEdges) {
+            this.ensureSymbolAnalysis(otherSym, analyzeHops - 1);
+          }
         }
-        for (let otherSym of symInfo.inEdges) {
-          this.ensureSymbolAnalysis(otherSym, analyzeHops - 1);
+        if (symInfo.inEdges.size < this.EDGE_SANITY_LIMIT) {
+          for (let otherSym of symInfo.inEdges) {
+            this.ensureSymbolAnalysis(otherSym, analyzeHops - 1);
+          }
         }
       }
       return symInfo;
@@ -240,9 +233,9 @@ export default class KnowledgeBase {
   /**
    * Dig up info on a symbol by:
    * - Running a searchfox search on the symbol.
+   * - Processing def/decl results.
    * - Populate incoming edge information from the "uses" results.
-   * - Trigger analysis of any files cited as "decls" or "defs".  This produces
-   *   out edges and should get us the syntax-highlighted source.
+   * - Populate outgoing edge information from the "consumes" results.
    */
   async _analyzeSymbol(symInfo, analyzeHops) {
     // Perform the raw Searchfox search.

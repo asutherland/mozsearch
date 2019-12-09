@@ -23,7 +23,6 @@ export default class SessionPopupContainer extends DirtyingComponent {
     this.popupManager = this.sessionManager.popupManager;
 
     this.lastPopupInfo = null;
-    this.lastWidgetInfo = null;
   }
 
   render() {
@@ -33,6 +32,7 @@ export default class SessionPopupContainer extends DirtyingComponent {
 
     let widgetInfo;
     let context = null;
+
     if (isOpen) {
       if (this.lastPopupInfo === popupInfo) {
         widgetInfo = this.lastWidgetInfo;
@@ -43,7 +43,7 @@ export default class SessionPopupContainer extends DirtyingComponent {
       }
       this.lastPopupInfo = popupInfo;
       context = popupInfo.context;
-      console.log("showing popup", widgetInfo, popupInfo, "context:", context);
+      //console.log("showing popup", widgetInfo, popupInfo, "context:", context);
     } else {
       this.lastPopupInfo = null;
       this.lastWidgetInfo = null;

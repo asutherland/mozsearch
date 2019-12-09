@@ -251,7 +251,9 @@ class HierBuilder {
   determineNodeActions() {
     this.idCounter = 1;
     this._determineNodeAction(this.root, false, null);
-    console.log('root node of graph post-determine:', this.root);
+    if (window.DEBUG_DIAGRAM) {
+      console.log('root node of graph post-determine:', this.root);
+    }
   }
 
   _renderNode(node, indentStr) {

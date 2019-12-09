@@ -150,7 +150,7 @@ a.type {
 }
 /* The .c class is used in files for comments. This definition is there just to prevent overriding. */
 .icon-container.c,
-.icon.c { 
+.icon.c {
     background-image: url(/static/icons/mimetypes/c.png);
 }
 .conf {
@@ -215,7 +215,7 @@ a.type {
 .txt {
     background-image: url(/static/icons/mimetypes/txt.png);
 }
-.ui {
+.mime-type-icon-ui {
     background-image: url(/static/icons/mimetypes/ui.png);
 }
 .unknown {

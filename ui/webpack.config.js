@@ -1,12 +1,10 @@
 const path = require('path');
-const HTMLWebpackPlugin = require('html-webpack-plugin');
 const CleanWebpackPlugin = require('clean-webpack-plugin');
 
 module.exports = {
   mode: 'production',
   entry: {
-    'grok-ui': './src/grok-ui/app.js',
-    //'crash-ui': './src/crash-ui/app.js',
+    'searchfox-ui': './src/grok-ui/searchfox-ui.js',
   },
   devtool: 'inline-source-map',
   devServer: {
@@ -14,9 +12,6 @@ module.exports = {
   },
   plugins: [
     new CleanWebpackPlugin(['dist']),
-    new HTMLWebpackPlugin({
-      title: 'Too Many Tools'
-    }),
   ],
   module: {
     rules: [
@@ -67,6 +62,7 @@ module.exports = {
   },
   output: {
     filename: '[name].bundle.js',
-    path: path.resolve(__dirname, 'dist')
+    path: path.resolve(__dirname, 'dist'),
+    publicPath: '/ui/',
   }
 };

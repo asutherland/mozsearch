@@ -6,10 +6,6 @@ import RawSearchResults from './frontend/raw_search_results.js';
 import FilteredResults from './frontend/filtered_results.js';
 import KnowledgeBase from './frontend/knowledge_base.js';
 
-import FancyCrash from './frontend/crashes/fancy_crash.js';
-
-import TriceLog from './frontend/trice_log.js';
-
 class GrokAnalysisFrontend {
   /**
    * The frontend name determines the root IndexedDB database name used.
@@ -61,7 +57,9 @@ class GrokAnalysisFrontend {
         console.warn("Got reply without map entry:", data, "ignoring.");
         return;
       }
-      console.log("reply", msgId, type, payload);
+      if (window.DEBUG_GROKYSIS_BRIDGE) {
+        console.log("reply", msgId, type, payload);
+      }
       const { resolve, reject } = this._awaitingReplies.get(msgId);
       if (data.success) {
         resolve(payload);
@@ -90,7 +88,9 @@ class GrokAnalysisFrontend {
 
   _sendAndAwaitReply(type, payload) {
     const msgId = this._nextMsgId++;
-    console.log("request", msgId, type, payload);
+    if (window.DEBUG_GROKYSIS_BRIDGE) {
+      console.log("request", msgId, type, payload);
+    }
     this._port.postMessage({
       type,
       msgId,
@@ -103,7 +103,7 @@ class GrokAnalysisFrontend {
   }
 
 
-  _initCompleted({ globals, sessionThings }) {
+  _initCompleted({ /*globals,*/ sessionThings }) {
     this.sessionManager.consumeSessionData(sessionThings);
   }
 
@@ -118,38 +118,6 @@ class GrokAnalysisFrontend {
     const rawResults = new RawSearchResults(wireResults);
     const filtered = new FilteredResults({ rawResultsList: [rawResults] });
     return filtered;
-  }
-
-  // NB: This is more than a little dumb.  We do the fetch of a large JSON
-  // payload on the other side, doing the JSON decoding there, and then we
-  // post that back over here to the main thread.  This is the motivating HTML
-  // parsing case, but this is just extra silly is all.
-  async fetchFile(fetchArgs) {
-    const wireResults = await this._sendAndAwaitReply(
-      "fetchFile",
-      fetchArgs
-    );
-    return wireResults;
-  }
-
-  //////////////////////////////////////////////////////////////////////////////
-  // Crash Analysis AKA Crashysis stuff
-  async fetchCrashById(crashId) {
-    const wireResults = await this._sendAndAwaitReply(
-      "fetchCrashById",
-      crashId
-    );
-    return new FancyCrash(wireResults);
-  }
-
-  //////////////////////////////////////////////////////////////////////////////
-  // Trice Log stuff
-
-  async loadTriceLog(args) {
-    const wireResults = await this._sendAndAwaitReply(
-      "loadTriceLog",
-      args);
-    return new TriceLog(wireResults);
   }
 }
 

@@ -60,7 +60,9 @@ export default class InternalDoodler {
       diagram.floodWeakDiagForPaths(strongRoot, bitVal, strongRoots);
     }
 
-    console.log('rendered diagram', diagram);
+    if (window.DEBUG_DIAGRAM) {
+      console.log('rendered diagram', diagram);
+    }
 
     diagram.mergeTraversedWeakDiagIn();
   }

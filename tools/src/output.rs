@@ -279,7 +279,7 @@ pub fn generate_footer(
     ];
     let script_tags: Vec<_> = scripts
         .iter()
-        .map(|s| F::T(format!(r#"<script src="/static/js/{}"></script>"#, s)))
+        .map(|s| F::T(format!(r#"<script src="{}"></script>"#, s)))
         .collect();
 
     let f = F::Seq(vec![
