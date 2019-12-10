@@ -55,6 +55,9 @@ struct SymbolMeta {
     syntax_kind: Rc<String>,
     type_pretty: Rc<String>,
     type_sym: Rc<String>,
+    src_sym: Rc<String>,
+    target_sym: Rc<String>,
+    idl_sym: Rc<String>,
 }
 
 impl ToJson for SymbolMeta {
@@ -63,6 +66,9 @@ impl ToJson for SymbolMeta {
         obj.insert("syntax".to_string(), self.syntax_kind.to_json());
         obj.insert("type".to_string(), self.type_pretty.to_json());
         obj.insert("typesym".to_string(), self.type_sym.to_json());
+        obj.insert("srcsym".to_string(), self.src_sym.to_json());
+        obj.insert("targetsym".to_string(), self.target_sym.to_json());
+        obj.insert("idlsym".to_string(), self.idl_sym.to_json());
         Json::Object(obj)
     }
 }
@@ -168,6 +174,11 @@ fn main() {
     let mut consumes_table = BTreeMap::new();
     // Not populated until phase 2 when we walk the above data-structures.
     let mut jumps = Vec::new();
+
+    // As we process the source entries and build the SourceMeta, we keep a running list of what
+    // IPC symbols need to be linked.  We then process this after all of the files have been
+    // processed.  We do this primarily because we can't mutate meta_table while we traverse it.
+    let mut ipc_to_link = Vec::new();
 
     for path in &file_paths {
         print!("File {}\n", path);
@@ -279,10 +290,16 @@ fn main() {
                 if piece.is_def() {
                     if piece.get_syntax_kind().is_some() {
                         meta_table.entry(strings.add(piece.sym[0].clone())).or_insert_with(|| {
+                            if piece.is_ipc() {
+                                ipc_to_link.push(strings.add(piece.sym[0].clone()));
+                            }
                             SymbolMeta {
                                 syntax_kind: strings.add(piece.get_syntax_kind().unwrap().to_string()),
                                 type_pretty: strings.add(piece.type_pretty.unwrap_or("".to_string())),
                                 type_sym: strings.add(piece.type_sym.unwrap_or("".to_string())),
+                                src_sym: strings.add(piece.src_sym.unwrap_or("".to_string())),
+                                target_sym: strings.add(piece.target_sym.unwrap_or("".to_string())),
+                                idl_sym: Rc::clone(&empty_string),
                             }
                         });
                     }
@@ -291,6 +308,33 @@ fn main() {
         }
     }
 
+    // ## Process the meta table for propagation.
+    // ### Tasks
+    // - For all "ipc" metas, establish an "idl_sym" up-link from their src_sym and target_sym to
+    //   the ipc sym.  Also, each should have the respective src/target sym.
+    //
+    // ### How
+    // Because we want to mutate the contents of the map and rust has (sensible) issues with
+    // us mutating the map while we're traversing it, we perform a pass when we decide what symbols
+    for ipc_sym in ipc_to_link {
+        let (src_sym, target_sym) = match meta_table.get(&ipc_sym) {
+            Some(ipc_meta) => (ipc_meta.src_sym.clone(), ipc_meta.target_sym.clone()),
+            None => continue,
+        };
+
+        if let Some(src_meta) = meta_table.get_mut(&src_sym) {
+            src_meta.idl_sym = ipc_sym.clone();
+            src_meta.target_sym = target_sym.clone();
+        }
+
+        if let Some(target_meta) = meta_table.get_mut(&target_sym) {
+            target_meta.idl_sym = ipc_sym.clone();
+            target_meta.src_sym = src_sym.clone();
+        }
+    }
+
+
+    // ## Write out the crossref database.
     let mut outputf = File::create(output_file).unwrap();
 
     for (id, id_data) in table {
@@ -309,6 +353,7 @@ fn main() {
                 AnalysisKind::Assign => "assignments",
                 AnalysisKind::Decl => "decls",
                 AnalysisKind::Idl => "idl",
+                AnalysisKind::IPC => "ipc",
             };
             kindmap.insert(kindstr.to_string(), Json::Array(result));
         }

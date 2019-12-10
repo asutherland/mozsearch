@@ -190,9 +190,11 @@ pub fn format_code(
                         nesting_stack.push(a);
                     }
 
-                    // Populate generated_sym_info for the first symbol in the symbol list if we
-                    // have type_pretty info for the source record.
-                    if a.type_pretty.is_some() && a.sym.len() >= 1 &&
+                    // Pass-through local symbol information that won't be available from the
+                    // cross-reference database because it was marked no_crossref.  This is only
+                    // intended to cover type information about the locals; other info like srcsym
+                    // and targetsym doesn't make sense for locals.
+                    if a.no_crossref && a.type_pretty.is_some() && a.sym.len() >= 1 &&
                        !generated_sym_info.contains_key(&a.sym[0]) {
                         let mut obj = json::Object::new();
                         if a.get_syntax_kind().is_some() {

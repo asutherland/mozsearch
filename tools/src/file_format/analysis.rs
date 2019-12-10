@@ -93,6 +93,7 @@ pub enum AnalysisKind {
     Assign,
     Decl,
     Idl,
+    IPC,
 }
 
 impl fmt::Display for AnalysisKind {
@@ -103,6 +104,7 @@ impl fmt::Display for AnalysisKind {
             AnalysisKind::Assign => "assign",
             AnalysisKind::Decl => "decl",
             AnalysisKind::Idl => "idl",
+            AnalysisKind::IPC => "ipc",
         };
         formatter.write_str(str)
     }
@@ -167,6 +169,8 @@ pub struct AnalysisSource {
     pub type_sym: Option<String>,
     // XXX maybe there should be an Option<AnalysisMeta> here and we only attach it to definitions?
     // Perhaps source records are the wrong thing here.
+    pub src_sym: Option<String>,
+    pub target_sym: Option<String>,
 }
 
 impl AnalysisSource {
@@ -201,6 +205,12 @@ impl AnalysisSource {
         if let Some(type_sym) = other.type_sym {
             self.type_sym.get_or_insert(type_sym);
         }
+        if let Some(src_sym) = other.src_sym {
+            self.src_sym.get_or_insert(src_sym);
+        }
+        if let Some(target_sym) = other.target_sym {
+            self.target_sym.get_or_insert(target_sym);
+        }
     }
 
     /// Indicates whether this is a "def" or not.  Note that this is determined by consulting the
@@ -209,6 +219,20 @@ impl AnalysisSource {
     /// new type of record.
     pub fn is_def(&self) -> bool {
         return self.syntax.contains(&String::from("def"));
+    }
+
+    /// Indicate whether this is a synthetic IPC symbol that needs to habe its meta-info
+    /// propagated during cross-referencing.
+    pub fn is_ipc(&self) -> bool {
+        return self.pretty.split(' ').next().map_or(false, |kind| kind == "ipc");
+    }
+
+    /// Returns true if there's any meta-info of note on this record.
+    pub fn has_meta_info(&self) -> bool {
+        self.type_pretty.is_some() ||
+        self.type_sym.is_some() ||
+        self.src_sym.is_some() ||
+        self.target_sym.is_some()
     }
 
     /// Source records' "pretty" field is prefixed with their SyntaxKind.  It's also placed in the
@@ -258,6 +282,20 @@ impl fmt::Display for AnalysisSource {
                 formatter,
                 r#","typesym":"{}""#,
                 type_sym
+            )?;
+        }
+        if let Some(src_sym) = &self.src_sym {
+            write!(
+                formatter,
+                r#","srcsym":"{}""#,
+                src_sym
+            )?;
+        }
+        if let Some(target_sym) = &self.target_sym {
+            write!(
+                formatter,
+                r#","targetsym":"{}""#,
+                target_sym
             )?;
         }
         Ok(())
@@ -326,7 +364,7 @@ pub fn read_analysis<T>(
     filename: &str,
     filter: &mut dyn FnMut(&Object) -> Option<T>,
 ) -> Vec<WithLocation<Vec<T>>> {
-    read_analyses(&vec![filename], filter)
+    read_analyses(vec![filename.to_string()].as_slice(), filter)
 }
 
 /// Load analysis data for one or more files, sorting and grouping by location, with data payloads
@@ -334,7 +372,7 @@ pub fn read_analysis<T>(
 /// returned (if `read_source` is provided) or AnalysisTarget (if `read_target`) and other record
 /// types being ignored.
 pub fn read_analyses<T>(
-    filenames: &[&str],
+    filenames: &[String],
     filter: &mut dyn FnMut(&Object) -> Option<T>,
 ) -> Vec<WithLocation<Vec<T>>> {
     let mut result = Vec::new();
@@ -422,6 +460,7 @@ pub fn read_target(obj: &Object) -> Option<AnalysisTarget> {
         "assign" => AnalysisKind::Assign,
         "decl" => AnalysisKind::Decl,
         "idl" => AnalysisKind::Idl,
+        "ipc" => AnalysisKind::IPC,
         _ => panic!("bad target kind"),
     };
 
@@ -508,6 +547,8 @@ pub fn read_source(obj: &Object) -> Option<AnalysisSource> {
 
     let type_pretty = to_str_opt(&obj.get("type"));
     let type_sym = to_str_opt(&obj.get("typesym"));
+    let src_sym = to_str_opt(&obj.get("srcsym"));
+    let target_sym = to_str_opt(&obj.get("targetsym"));
 
     Some(AnalysisSource {
         pretty,
@@ -517,6 +558,8 @@ pub fn read_source(obj: &Object) -> Option<AnalysisSource> {
         nesting_range,
         type_pretty,
         type_sym,
+        src_sym,
+        target_sym,
     })
 }
 

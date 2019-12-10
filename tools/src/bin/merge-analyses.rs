@@ -40,7 +40,7 @@ fn main() {
     let mut unique_targets = HashSet::new();
 
     let src_data = read_analyses(
-        &args.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
+        &args,
         &mut |obj: &Object| {
             // return source objects for so that they come out of `read_analyses` for
             // additional processing below.

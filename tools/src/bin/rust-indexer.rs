@@ -420,6 +420,8 @@ fn visit_common(
             // TODO: Expose type information for fields/etc.
             type_pretty: None,
             type_sym: None,
+            src_sym: None,
+            target_sym: None,
         },
         loc,
     };
