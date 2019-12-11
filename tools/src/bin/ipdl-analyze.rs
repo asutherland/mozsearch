@@ -112,7 +112,7 @@ fn find_analysis<'a>(analysis: &'a TargetAnalysis, mangled: &str) -> Option<&'a 
     return None;
 }
 
-fn output_target_data(outputf: &mut File, locstr: &str, datum: &AnalysisTarget) {
+fn output_binding_target_data(outputf: &mut File, locstr: &str, datum: &AnalysisTarget) {
     write!(
         outputf,
         r#"{{"loc": "{}", "target": 1, "kind": "idl", "pretty": "{}", "sym": "{}"}}"#,
@@ -122,10 +122,19 @@ fn output_target_data(outputf: &mut File, locstr: &str, datum: &AnalysisTarget) 
     write!(outputf, "\n").unwrap();
 }
 
-fn output_source_data(outputf: &mut File, locstr: &str, ipc_pretty: &str, ipc_sym: &str, send_datum: &AnalysisTarget, recv_datum: &AnalysisTarget) {
+fn output_ipc_data(outputf: &mut File, locstr: &str, ipc_pretty: &str, ipc_sym: &str, send_datum: &AnalysisTarget, recv_datum: &AnalysisTarget) {
+    // It might make sense to change the kind to "ipc", but if so, we probably want to change the
+    // binding target records as well.
     write!(
         outputf,
-        r#"{{"loc": "{}", "source": 1, "syntax": "idl,ipc", "pretty": "{}", "sym": "{}", "srcsym": "{}", "targetsym": "{}"}}"#,
+        r#"{{"loc": "{}", "target": 1, "kind": "idl", "pretty": "{}", "sym": "{}"}}"#,
+        locstr, ipc_pretty, ipc_sym
+    )
+    .unwrap();
+    write!(outputf, "\n").unwrap();
+    write!(
+        outputf,
+        r#"{{"loc": "{}", "source": 1, "syntax": "idl,ipc,def", "pretty": "ipc {}", "sym": "{}", "srcsym": "{}", "targetsym": "{}"}}"#,
         locstr, ipc_pretty, ipc_sym, send_datum.sym, recv_datum.sym
     )
     .unwrap();
@@ -163,7 +172,7 @@ fn output_send_recv(
     );
     let maybe_send_datum = find_analysis(send_analysis, &mangled);
     if let Some(send_datum) = maybe_send_datum {
-        output_target_data(outputf, &locstr, &send_datum);
+        output_binding_target_data(outputf, &locstr, &send_datum);
     }
 
     // Depending on whether the protocol is a legacy virtual implementation or direct-call, the
@@ -184,12 +193,12 @@ fn output_send_recv(
     let maybe_recv_datum = find_analysis(recv_analysis, &mangled_no_p)
                            .or_else(|| find_analysis(recv_analysis, &mangled_yes_p));
     if let Some(recv_datum) = maybe_recv_datum {
-        output_target_data(outputf, &locstr, &recv_datum);
+        output_binding_target_data(outputf, &locstr, &recv_datum);
     }
 
     if let (Some(send_datum), Some(recv_datum)) = (maybe_send_datum, maybe_recv_datum) {
         let ipc_pretty = format!(
-            "ipc {}::{}::{}",
+            "{}::{}::{}",
             protocol.namespaces.join("_"),
             protocol.name.id,
             message.name.id
@@ -200,7 +209,7 @@ fn output_send_recv(
             protocol.name.id,
             message.name.id
         );
-        output_source_data(outputf, &locstr, &ipc_pretty, &ipc_sym, &send_datum, &recv_datum);
+        output_ipc_data(outputf, &locstr, &ipc_pretty, &ipc_sym, &send_datum, &recv_datum);
     }
 }
 
