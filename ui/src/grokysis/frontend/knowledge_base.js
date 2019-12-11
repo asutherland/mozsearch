@@ -302,7 +302,8 @@ export default class KnowledgeBase {
                 for (const lineResult of pathLines.lines) {
                   if (lineResult.contextsym) {
                     const contextSym = this.lookupRawSymbol(
-                      normalizeSymbol(lineResult.contextsym), analyzeHops - 1,
+                      // XXX currently the uses will have commas
+                      normalizeSymbol(lineResult.contextsym, true), analyzeHops - 1,
                       lineResult.context,
                       // Provide a path for pretty name mangling normalization.
                       { somePath: pathLines.path,
