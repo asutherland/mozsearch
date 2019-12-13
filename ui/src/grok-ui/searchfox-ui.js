@@ -22,6 +22,8 @@ import KBSymbolInfoPopup from './components/popups/kb_symbol_info.jsx';
 
 import GrokAnalysisFrontend from '../grokysis/frontend.js';
 
+import { markdownRenderFromDOM } from './markdown-render.js';
+
 import 'semantic-ui-css/semantic.min.css';
 
 function makeGrokContext() {
@@ -255,7 +257,10 @@ function bindSourceClickHandling(doc) {
   fileElem.addEventListener('click', onSourceClick);
 
   //window.addEventListener('mousedown', onMouseDown);
+}
+bindSourceClickHandling(document);
 
+function createPopupWidget() {
   const contentNode = document.createElement('div');
   contentNode.className = 'searchfox-popup-container';
   // The popup currently likes to put itself at the top of the DOM.  It's not
@@ -274,5 +279,36 @@ function bindSourceClickHandling(doc) {
   );
   ReactDOM.render(popupTags, contentNode);
 }
+createPopupWidget();
 
-bindSourceClickHandling(document);
+async function onLoad() {
+  const filename = document.location.pathname.split('/').slice(-1)[0];
+  const extension = filename.split('.').slice(-1)[0].toLowerCase();
+
+  if (extension === 'md') {
+    // Use our helper to extract the string from the DOM and produce a new
+    // DOM that we can use to replace this one.
+    const fileNode = document.getElementById('file');
+    const newDOM = await markdownRenderFromDOM(fileNode);
+
+    fileNode.id = 'raw-file';
+    fileNode.style = 'display: none;';
+
+    const newFileNode = document.createElement('div');
+    newFileNode.id = 'file';
+    newFileNode.classList.add('file');
+
+    const paddingWrapperNode = document.createElement('div');
+    paddingWrapperNode.classList.add('rendered-markdown');
+    paddingWrapperNode.appendChild(newDOM);
+
+    newFileNode.appendChild(paddingWrapperNode);
+
+    fileNode.parentNode.appendChild(newFileNode);
+
+    // Re-bind the click handling since the listener was added on the node
+    // directly.
+    bindSourceClickHandling(document);
+  }
+}
+window.addEventListener('load', onLoad, { once: true });

@@ -82,3 +82,8 @@ date
 $MOZSEARCH_PATH/scripts/check-index.sh $CONFIG_FILE $TREE_NAME "filesystem" ""
 
 date
+
+if [[ -x "$CONFIG_REPO/$TREE_NAME/post-index" ]]
+then
+    $CONFIG_REPO/$TREE_NAME/post-index
+fi

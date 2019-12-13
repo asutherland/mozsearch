@@ -353,6 +353,10 @@ body {
     margin: 0;
 }
 
+.rendered-markdown {
+  padding: 1em 2em;
+}
+
 /* Context menu.  Looks like:
  *
  * /----------------------\
