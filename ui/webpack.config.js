@@ -6,7 +6,7 @@ module.exports = {
   entry: {
     'searchfox-ui': './src/grok-ui/searchfox-ui.js',
   },
-  devtool: 'inline-source-map',
+  devtool: 'source-map',
   devServer: {
     contentBase: './dist'
   },

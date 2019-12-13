@@ -2,7 +2,9 @@
 
 Here are some interesting symbols:
 - `GlobalContext`
-- `GlobalContext::decideInterstingBooleanTrait`
+- `GlobalContext::decideBooleanTrait()`
+  - and here it is without parens: `GlobalContext::decideBooleanTrait`
+  - and with stuff between the parens: `GlobalContext::decideBooleanTrait(...)`
 
 Here's some just normal bullet points with things that aren't symbols:
 - `not_a_symbol_we_have`

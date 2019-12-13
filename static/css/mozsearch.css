@@ -355,6 +355,8 @@ body {
 
 .rendered-markdown {
   padding: 1em 2em;
+  max-width: 60em;
+  font-size: 14px;
 }
 
 /* Context menu.  Looks like:
@@ -605,13 +607,13 @@ body {
 }
 
 /* Hovering over symbol names */
-span[data-symbols]:hover {
+span[data-symbols]:hover, code[data-symbols]:hover {
   cursor: pointer;
 }
-span[data-symbols].hovered {
+span[data-symbols].hovered, code[data-symbols].hovered {
   background-color: yellow;
 }
-span[data-symbols].sticky-highlight {
+span[data-symbols].sticky-highlight, code[data-symbols].sticky-highlight {
   background-color: orange;
 }
 

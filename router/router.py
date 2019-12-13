@@ -515,7 +515,7 @@ def get_json_sorch_results(tree_name, query):
     if is_trivial_search(parsed):
         results = {}
         return json.dumps(results)
-        
+
     title = search_string
     if not title:
         title = 'Files ' + path_filter
@@ -535,7 +535,7 @@ def get_json_sorch_results(tree_name, query):
                 search.add_symbol(symbol, demangle(symbol), sym_data)
     elif 'id' in parsed:
         search.set_path_filter(parsed.get('pathre'))
-        identifier_search(search, tree_name, parsed['id'], complete=True, fold_case=fold_case)
+        identifier_sorch(search, tree_name, parsed['id'], complete=True, fold_case=fold_case)
     elif 'default' in parsed:
         work_limit = True
         path = parsed.get('pathre', '.*')

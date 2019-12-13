@@ -1,6 +1,8 @@
 import EE from 'eventemitter3';
 
 /**
+ * Aspirational class to enable faceting/filtering.  Not useful yet!  Sorry!
+ *
  * Consumes one or more immutable SearchResults instances for user-interactive
  * iterative filtering and faceting.
  *

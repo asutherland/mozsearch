@@ -71,6 +71,17 @@ export default class KnowledgeBase {
     this.grokCtx = grokCtx;
 
     /**
+     * Maps from a (pretty) id to the Set of symbols known to correspond to that
+     * id.  For now, populated only by `findSymbolGivenId` which caches to this
+     * dictionary.  Entries will only exist for positive results.  Negative
+     * results are cached in `knownNonIds`.
+     */
+    this.idToSymbols = new Map();
+
+
+    this.knownNonIds = new Set();
+
+    /**
      * SymbolInfo instances by their raw (usually) manged name.  There is
      * exactly one SymbolInfo per raw name.  Compare with pretty symbols which,
      * in searchfox, discard the extra typeinfo like method override variants,
@@ -99,6 +110,53 @@ export default class KnowledgeBase {
      * RefPtr.
      */
     this.EDGE_SANITY_LIMIT = 32;
+  }
+
+  /**
+   * Basically just a caching exact "id" search for now.
+   */
+  async findSymbolsGivenId(id) {
+    if (this.idToSymbols.has(id)) {
+      return this.idToSymbols.get(id);
+    }
+
+    if (this.knownNonIds.has(id)) {
+      return null;
+    }
+
+    const filteredResults =
+      await this.grokCtx.performSearch(`id:${id}`);
+
+    const raw = filteredResults.rawResultsList[0].raw;
+
+    const resultSet = new Set();
+    for (const [rawName, rawSymInfo] of Object.entries(raw.semantic || {})) {
+      let symInfo = this.symbolsByRawName.get(rawName);
+      if (symInfo) {
+        resultSet.add(symInfo);
+
+        if (!symInfo.analyzed && !symInfo.analyzing) {
+          this._processSymbolRawSymInfo(symInfo, rawSymInfo);
+          symInfo.analyzed = true;
+        }
+        continue;
+      }
+
+      symInfo = new SymbolInfo({ rawName });
+      this.symbolsByRawName.set(rawName, symInfo);
+      this._processSymbolRawSymInfo(symInfo, rawSymInfo);
+      symInfo.analyzed = true;
+
+      resultSet.add(symInfo);
+    }
+
+    if (resultSet.size) {
+      this.idToSymbols.set(id, resultSet);
+      return resultSet;
+    }
+
+    this.knownNonIds.add(id);
+    return null;
   }
 
   /**
@@ -231,6 +289,88 @@ export default class KnowledgeBase {
   }
 
   /**
+   * Given the raw semantic info returned from a sorch that matches a symbol,
+   * process it into the given symbol.
+   */
+  _processSymbolRawSymInfo(symInfo, rawSymInfo, analyzeHops=1) {
+    symInfo.updatePrettyNameFrom(rawSymInfo.pretty);
+
+    // ## Consume "meta" data
+    if (rawSymInfo.meta) {
+      symInfo.updateSyntaxKindFrom(rawSymInfo.meta.syntax);
+    }
+
+    // ## Consume "consumes"
+    if (rawSymInfo.consumes) {
+      for (let consumedInfo of rawSymInfo.consumes) {
+        const consumedSym = this.lookupRawSymbol(
+          normalizeSymbol(consumedInfo.sym), analyzeHops - 1,
+          consumedInfo.pretty,
+          // XXX it might be nice for consumes to provide the def location/filetype.
+          { syntaxKind: consumedInfo.syntax });
+
+        symInfo.outEdges.add(consumedSym);
+        symInfo.markDirty();
+        consumedSym.inEdges.add(symInfo);
+        consumedSym.markDirty();
+      }
+    }
+
+    // ## Consume "hits" dicts
+    // walk over normal/test/generated in the hits dict.
+    if (rawSymInfo.hits) {
+      for (const [pathKind, useGroups ] of Object.entries(rawSymInfo.hits)) {
+        // Each key is the use-type like "defs", "decls", etc. and the values
+        // are PathLines objects of the form { path, lines }
+        for (const [useType, pathLinesArray] of Object.entries(useGroups)) {
+          //
+          if (useType === 'defs') {
+            if (pathLinesArray.length === 1 && !symInfo.sourceFileInfo) {
+              const path = pathLinesArray[0].path;
+              symInfo.sourceFileInfo = this.ensureFileAnalysis(path);
+              symInfo.sourceFileInfo.fileSymbolDefs.add(symInfo);
+              symInfo.sourceFileInfo.markDirty();
+            }
+          }
+          else if (useType === 'decls') {
+            // XXX this will largely get confused by forwards
+            if (pathLinesArray.length === 1 && !symInfo.declFileInfo) {
+              const path = pathLinesArray[0].path;
+              symInfo.declFileInfo = this.ensureFileAnalysis(path);
+              symInfo.declFileInfo.fileSymbolDecls.add(symInfo);
+              symInfo.declFileInfo.markDirty();
+            }
+          }
+          else if (useType === 'uses') {
+            for (const pathLines of pathLinesArray) {
+              for (const lineResult of pathLines.lines) {
+                if (lineResult.contextsym) {
+                  const contextSym = this.lookupRawSymbol(
+                    // XXX currently the uses will have commas
+                    normalizeSymbol(lineResult.contextsym, true), analyzeHops - 1,
+                    lineResult.context,
+                    // Provide a path for pretty name mangling normalization.
+                    { somePath: pathLines.path,
+                      // Assume the other thing is a function until we hear
+                      // otherwise.  This is necessary for the current call
+                      // graph filtering that wants to ensure things are
+                      // callable.
+                      syntaxKind: 'function' });
+
+                  symInfo.inEdges.add(contextSym);
+                  symInfo.markDirty();
+                  contextSym.outEdges.add(symInfo);
+                  contextSym.markDirty();
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /**
    * Dig up info on a symbol by:
    * - Running a searchfox search on the symbol.
    * - Processing def/decl results.
@@ -251,79 +391,7 @@ export default class KnowledgeBase {
         continue;
       }
 
-      // ## Consume "meta" data
-      if (rawSymInfo.meta) {
-        symInfo.updateSyntaxKindFrom(rawSymInfo.meta.syntax);
-      }
-
-      // ## Consume "consumes"
-      if (rawSymInfo.consumes) {
-        for (let consumedInfo of rawSymInfo.consumes) {
-          const consumedSym = this.lookupRawSymbol(
-            normalizeSymbol(consumedInfo.sym), analyzeHops - 1,
-            consumedInfo.pretty,
-            // XXX it might be nice for consumes to provide the def location/filetype.
-            { syntaxKind: consumedInfo.syntax });
-
-          symInfo.outEdges.add(consumedSym);
-          symInfo.markDirty();
-          consumedSym.inEdges.add(symInfo);
-          consumedSym.markDirty();
-        }
-      }
-
-      // ## Consume "hits" dicts
-      // walk over normal/test/generated in the hits dict.
-      if (rawSymInfo.hits) {
-        for (const [pathKind, useGroups ] of Object.entries(rawSymInfo.hits)) {
-          // Each key is the use-type like "defs", "decls", etc. and the values
-          // are PathLines objects of the form { path, lines }
-          for (const [useType, pathLinesArray] of Object.entries(useGroups)) {
-            //
-            if (useType === 'defs') {
-              if (pathLinesArray.length === 1 && !symInfo.sourceFileInfo) {
-                const path = pathLinesArray[0].path;
-                symInfo.sourceFileInfo = this.ensureFileAnalysis(path);
-                symInfo.sourceFileInfo.fileSymbolDefs.add(symInfo);
-                symInfo.sourceFileInfo.markDirty();
-              }
-            }
-            else if (useType === 'decls') {
-              // XXX this will largely get confused by forwards
-              if (pathLinesArray.length === 1 && !symInfo.declFileInfo) {
-                const path = pathLinesArray[0].path;
-                symInfo.declFileInfo = this.ensureFileAnalysis(path);
-                symInfo.declFileInfo.fileSymbolDecls.add(symInfo);
-                symInfo.declFileInfo.markDirty();
-              }
-            }
-            else if (useType === 'uses') {
-              for (const pathLines of pathLinesArray) {
-                for (const lineResult of pathLines.lines) {
-                  if (lineResult.contextsym) {
-                    const contextSym = this.lookupRawSymbol(
-                      // XXX currently the uses will have commas
-                      normalizeSymbol(lineResult.contextsym, true), analyzeHops - 1,
-                      lineResult.context,
-                      // Provide a path for pretty name mangling normalization.
-                      { somePath: pathLines.path,
-                        // Assume the other thing is a function until we hear
-                        // otherwise.  This is necessary for the current call
-                        // graph filtering that wants to ensure things are
-                        // callable.
-                        syntaxKind: 'function' });
-
-                    symInfo.inEdges.add(contextSym);
-                    symInfo.markDirty();
-                    contextSym.outEdges.add(symInfo);
-                    contextSym.markDirty();
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
+      this._processSymbolRawSymInfo(symInfo, rawSymInfo, analyzeHops);
     }
   }
 

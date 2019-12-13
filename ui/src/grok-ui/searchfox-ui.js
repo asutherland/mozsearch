@@ -289,7 +289,7 @@ async function onLoad() {
     // Use our helper to extract the string from the DOM and produce a new
     // DOM that we can use to replace this one.
     const fileNode = document.getElementById('file');
-    const newDOM = await markdownRenderFromDOM(fileNode);
+    const newDOM = await markdownRenderFromDOM(fileNode, gGrokCtx);
 
     fileNode.id = 'raw-file';
     fileNode.style = 'display: none;';
