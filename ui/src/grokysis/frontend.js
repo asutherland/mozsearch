@@ -6,6 +6,9 @@ import RawSearchResults from './frontend/raw_search_results.js';
 import FilteredResults from './frontend/filtered_results.js';
 import KnowledgeBase from './frontend/knowledge_base.js';
 
+import Viz from 'viz.js';
+import workerURL from 'viz.js/full.render.js';
+
 class GrokAnalysisFrontend {
   /**
    * The frontend name determines the root IndexedDB database name used.
@@ -38,6 +41,8 @@ class GrokAnalysisFrontend {
     this._awaitingReplies = new Map();
     this._nextMsgId = 1;
 
+    this._vizJs = null;
+
     this._sendAndAwaitReply(
       "init",
       {
@@ -45,6 +50,15 @@ class GrokAnalysisFrontend {
       }).then((initData) => {
         this._initCompleted(initData);
       });
+  }
+
+  get vizJs() {
+    if (this._vizJs) {
+      return this._vizJs;
+    }
+
+    this._vizJs = new Viz({ workerURL });
+    return this._vizJs;
   }
 
   _onMessage(evt) {

@@ -72,7 +72,7 @@ export default class KnowledgeBase {
 
     /**
      * Maps from a (pretty) id to the Set of symbols known to correspond to that
-     * id.  For now, populated only by `findSymbolGivenId` which caches to this
+     * id.  For now, populated only by `findSymbolsGivenId` which caches to this
      * dictionary.  Entries will only exist for positive results.  Negative
      * results are cached in `knownNonIds`.
      */
@@ -293,12 +293,40 @@ export default class KnowledgeBase {
    * process it into the given symbol.
    */
   _processSymbolRawSymInfo(symInfo, rawSymInfo, analyzeHops=1) {
+    // Let's assume something in this method changes the symbol.
+    symInfo.markDirty();
+
     symInfo.updatePrettyNameFrom(rawSymInfo.pretty);
 
     // ## Consume "meta" data
     if (rawSymInfo.meta) {
-      symInfo.updateSyntaxKindFrom(rawSymInfo.meta.syntax);
+      const meta = rawSymInfo.meta;
+      symInfo.updateSyntaxKindFrom(meta.syntax);
+
+      if (meta.srcsym) {
+        const srcSym = symInfo.srcSym =
+          this.lookupRawSymbol(meta.srcsym, analyzeHops - 1);
+        symInfo.inEdges.add(srcSym);
+        srcSym.outEdges.add(symInfo);
+        srcSym.markDirty();
+      }
+
+      if (meta.targetsym) {
+        const targetSym = symInfo.targetSym =
+          this.lookupRawSymbol(meta.targetsym, analyzeHops - 1);
+        symInfo.outEdges.add(targetSym);
+        targetSym.inEdges.add(symInfo);
+        targetSym.markDirty();
+      }
+
+      if (meta.idlsym) {
+        const idlSym = syminfo.idlSym =
+          this.lookupRawSymbol(meta.idlsym, analyzeHops - 1);
+        // The IDL symbol doesn't have any graph relevance since it already
+        // would have provided us with the srcsym and targetsym relations.
+      }
     }
+
 
     // ## Consume "consumes"
     if (rawSymInfo.consumes) {
@@ -310,7 +338,6 @@ export default class KnowledgeBase {
           { syntaxKind: consumedInfo.syntax });
 
         symInfo.outEdges.add(consumedSym);
-        symInfo.markDirty();
         consumedSym.inEdges.add(symInfo);
         consumedSym.markDirty();
       }
@@ -319,7 +346,7 @@ export default class KnowledgeBase {
     // ## Consume "hits" dicts
     // walk over normal/test/generated in the hits dict.
     if (rawSymInfo.hits) {
-      for (const [pathKind, useGroups ] of Object.entries(rawSymInfo.hits)) {
+      for (const [pathKind, useGroups] of Object.entries(rawSymInfo.hits)) {
         // Each key is the use-type like "defs", "decls", etc. and the values
         // are PathLines objects of the form { path, lines }
         for (const [useType, pathLinesArray] of Object.entries(useGroups)) {
@@ -358,7 +385,6 @@ export default class KnowledgeBase {
                       syntaxKind: 'function' });
 
                   symInfo.inEdges.add(contextSym);
-                  symInfo.markDirty();
                   contextSym.outEdges.add(symInfo);
                   contextSym.markDirty();
                 }
@@ -399,7 +425,7 @@ export default class KnowledgeBase {
    * Create a starting diagram based on a symbol and a diagram type.
    */
   diagramSymbol(symInfo, diagramType) {
-    const diagram = new ClassDiagram();
+    const diagram = new ClassDiagram(this.grokCtx);
 
     switch (diagramType) {
       default:
@@ -417,8 +443,58 @@ export default class KnowledgeBase {
     return diagram;
   }
 
+  /**
+   * Asynchronously process the `symbols` and `identifiers` arrays in the graph
+   * definition to return a single Set of SymbolInfo structures that have been
+   * fully analyzed.
+   */
+  async _lookupSymbolsFromGraphDef(gdef) {
+    const idPromises = [];
+    const symPromises = [];
+    const symbols = new Set();
+
+    for (const id of (gdef.identifiers || [])) {
+      idPromises.push(this.findSymbolsGivenId(id));
+    }
+
+    for (const symName of (gdef.symbols || [])) {
+      const symInfo = this.lookupRawSymbol(symName);
+      symPromises.push(this.ensureSymbolAnalysis(symInfo, 1));
+    }
+
+    const idResults = await Promise.all(idPromises);
+    const symResults = await Promise.all(symPromises);
+
+    for (const symSet of idResults) {
+      for (const sym of symSet) {
+        symbols.add(sym);
+      }
+    }
+    for (const sym of symResults) {
+      symbols.add(sym);
+    }
+
+    return symbols;
+  }
+
+  /**
+   * Async method that gathers the data needed per the graph definition, then
+   * renders it to an SVG.  This is intended for stuff like Markdown rendering
+   * where the result is not editable or live-updating.  (Although such graphs
+   * can always be upgraded into the interactive editing mode.)
+   */
+  async renderSVGDiagramFromGraphDef(gdef) {
+    const diagram = new ClassDiagram(this.grokCtx);
+
+    const symbols = await this._lookupSymbolsFromGraphDef(gdef);
+
+    switch (gdef.mode) {
+      case 'me'
+    }
+  }
+
   restoreDiagram(serialized) {
-    const diagram = new ClassDiagram();
+    const diagram = new ClassDiagram(this.grokCtx);
     diagram.loadFromSerialized(serialized);
     return diagram;
   }

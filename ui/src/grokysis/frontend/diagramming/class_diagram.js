@@ -347,8 +347,10 @@ class HierBuilder {
  *
  */
 export default class ClassDiagram extends EE {
-  constructor() {
+  constructor(grokCtx) {
     super();
+
+    this.grokCtx = grokCtx;
 
     this.serial = 0;
     this.batchDepth = 0;
@@ -361,6 +363,12 @@ export default class ClassDiagram extends EE {
     // Keys are target nodes, values are a Map whose keys are the source node
     // and whose value is metadata.
     this.reverseEdges = new Map();
+
+    /**
+     * Weak diagram that is brought into existence by floodWeakDiagForPaths.
+     * Weak diagrams won't themselves have weak diagrams.
+     */
+    this.weakDiag = null;
 
     /**
      * An edge that should not be part of the graph and shouldn't be traversed
@@ -445,11 +453,11 @@ export default class ClassDiagram extends EE {
    * Arguments:
    * - from
    * - to
-   * - current strength / or value to propgate.
+   * - current strength / or value to propagate.
    */
-  visitWithHelpers(startNode, considerEdge) {
+  visitWithHelpers(startNodes, considerEdge) {
+    const pendingNodes = startNodes.concat();
     // This is actually visited or will-visit.
-    const pendingNodes = [startNode];
     const visitedNodes = new Set(pendingNodes);
 
     // We use another ClassDiagram instance to store our weak wedges.

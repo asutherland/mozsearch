@@ -88,6 +88,10 @@ export default class SymbolInfo extends EE {
     this.superSymbols = new Set();
     this.subSymbols = new Set();
 
+    this.srcSym = null;
+    this.targetSym = null;
+    this.idlSym = null;
+
     /**
      * Indicates if we believe this symbol to be unimportant to understanding
      * the program at a higher level.  For example, string manipulation code is
@@ -190,6 +194,14 @@ export default class SymbolInfo extends EE {
   isSameSourceFileAs(otherSym) {
     // Don't return true if we don't know the file info!
     return this.sourceFileInfo && otherSym.sourceFileInfo === this.sourceFileInfo;
+  }
+
+  /**
+   * Use directory as the unit of coupling.  This potentially might want
+   * variations where we use the bugzilla component mapping.
+   */
+  isSameDirectoryAs(otherSym) {
+
   }
 
   updatePrettyNameFrom(prettyName, path) {

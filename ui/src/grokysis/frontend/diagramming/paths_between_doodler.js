@@ -1,28 +1,20 @@
 const MAX_CALLER_COUNT_FOR_TRAVERSAL_IN = 4;
 
 /**
- * Given a SymbolInfo corresponding to a class that has had its implementation
- * file analyzed, attempt to render its relation to other methods in the same
- * class.
- *
- * Practically, this means:
- * - Add all callers and callees that are "interesting" that live in the same
- *   class to the display graph.
- * - Create a hidden "weak" graph of all the remaining same-class edges that
- *   are reachable from those "strong" nodes.
- * - Allocate a distinct labeling bit for each of these strong nodes.
- * - Perform a BFS flood labeling from each strong node across all the weak
- *   edges visible, accumulating the labeling bits on nodes and edges.
- * - Any nodes or edges labeled with more than a single bit get added to the
- *   display graph.
+ * This is an expansion of the `InternalDoodler` that instead of taking a single
+ * symbol and finding locally relevant control flow instead takes a set of
+ * interesting symbols and attempts to find direct control flow paths between
+ * those symbols.  (By direct control flow, we mean that )
  */
-export default class InternalDoodler {
-  doodleMethodInternalEdges(rootSym, diagram) {
+export default class PathsBetweenDoodler {
+  doodleMethodInternalEdges(startSyms, diagram) {
     const strongRoots = new Set();
 
-    diagram.nodes.add(rootSym);
+    for (const sym of startSyms) {
+      diagram.nodes.add(sym);
+    }
     diagram.visitWithHelpers(
-      [rootSym],
+      Array.from(startSyms),
       (from, to) => {
         // Treat calls into methods with a high number of callers as bad.
         const tooBusy =
@@ -35,12 +27,12 @@ export default class InternalDoodler {
         if (from.isSameSourceFileAs(to) || from.isSameClassAs(to)) {
           // Okay, it's some type of edge, but it's only strong if it's touching
           // something already in the graph.
-          if (from === rootSym) {
+          if (startSyms.has(from)) {
             if (!tooBusy) {
               strongRoots.add(to);
             }
             return [tooBusy ? diagram.OK_EDGE : diagram.STRONG_EDGE, 0];
-          } else if (to === rootSym) {
+          } else if (startSyms.has(to)) {
             if (!tooBusy) {
               strongRoots.add(from);
             }

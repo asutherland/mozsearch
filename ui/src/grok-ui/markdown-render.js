@@ -16,6 +16,110 @@ function compileToDOM() {
   this.Compiler = compiler;
 }
 
+const RE_ID_KEEP = /^([^()]+)\(.*\)$/;
+/**
+ * Just strip any parentheses off the end, including anything inside them.
+ */
+function normalizeId(srcId) {
+  // The regexp only wants to match things with parentheses so we can eat
+  // them.  Otherwise we want to pass-through.
+  const match = RE_ID_KEEP.exec(srcId);
+  if (match) {
+    return match[1];
+  }
+  return srcId;
+}
+
+/**
+ * Async transformer that visits all "code" blocks with a language of
+ * "searchfox-graph-v1" and renders them into SVG.  These graphs are intended
+ * to be be interactive via data-symbols only.  Interactive graph refinement
+ * is something that will happen in the future by having an overlay icon that
+ * will replicate the current graph's underlying model into the normal
+ * editing/traversal UI's.
+ *
+ * For now, the expected representation of the graph is a JSON dictionary with
+ * keys and meanings.  All of this is expected to change/expand.
+ * - mode: One of the following strings identifying which "doodler" to use.
+ *   - "protocol": Attempt to diagram the classes involved with a particular
+ *     IPDL protocol or its specific methods.
+ * - symbols: An array of strings where each string is a searchfox symbol.
+ *   Except for our JS symbols, these are usually not particularly human
+ *   readable, consisting of mangled C++ symbols, etc.
+ * - identifiers: An array of strings where each string is a human-readable
+ *   searchfox identifier.  These are mapped to symbols and treated like they
+ *   had been provided in the "symbols" list.  Because symbols may change with
+ *   changes to method arguments and identifiers do not, identifiers are usually
+ *   a better choice.
+ */
+function renderGraphsInCodeBlocks({ grokCtx }) {
+  const kb = grokCtx.kb;
+
+  return function transformer(ast, vFile, next) {
+    const eligibleNodes = [];
+    const lookups = new Map();
+    const promises = [];
+    visit(ast, 'code', (node) => {
+      if (node.lang !== 'searchfox-graph-v1') {
+        return node;
+      }
+
+      if (node.value.includes(' ')) {
+        // any whitespace disqualifies it.
+        return node;
+      }
+
+      eligibleNodes.push(node);
+
+      // keep going if we're already looking up this value.
+      const useId = normalizeId(node.value);
+      if (lookups.has(useId)) {
+        return node;
+      }
+
+      lookups.set(useId, undefined);
+      const p = kb.findSymbolsGivenId(useId);
+      promises.push(p.then(
+        (symbolSet) => {
+          lookups.set(useId, symbolSet);
+        },
+        () => {
+          lookups.set(useId, null);
+        }));
+
+      return node;
+    });
+
+    Promise.all(promises).then(
+      () => {
+        for (const node of eligibleNodes) {
+          const useId = normalizeId(node.value);
+          const symbolSet = lookups.get(useId);
+          // Skip nodes that didn't resolve to symbols.
+          if (!symbolSet) {
+            continue;
+          }
+
+          const symbolNames =
+            Array.from(symbolSet).map((sym) => sym.rawName).join(',');
+
+          // Annotate the node with embedded hast data.
+          node.data = {
+            hProperties: {
+              className: ['syn_def'],
+              'data-symbols': symbolNames
+            },
+          };
+        }
+        next(null, ast, vFile);
+      },
+      (rejections) => {
+        console.warn('rejections while processing markdwon', rejections);
+        next(null, ast, vFile);
+      });
+  };
+}
+
 /**
  * Async transformer that visits all "inlineCode" uses that seem like they could
  * be valid searchfox identifiers, does a search to see if they are, and then
@@ -32,21 +136,6 @@ function compileToDOM() {
  */
 function markIdentifiersInInlineCode({ grokCtx }) {
   const kb = grokCtx.kb;
-
-  const RE_ID_KEEP = /^([^()]+)\(.*\)$/;
-
-  /**
-   * Just strip any parentheses off the end, including anything inside them.
-   */
-  function normalizeId(srcId) {
-    // The regexp only wants to match things with parentheses so we can eat
-    // them.  Otherwise we want to pass-through.
-    const match = RE_ID_KEEP.exec(srcId);
-    if (match) {
-      return match[1];
-    }
-    return srcId;
-  }
 
   return function transformer(ast, vFile, next) {
     const eligibleNodes = [];
