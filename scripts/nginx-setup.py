@@ -162,7 +162,6 @@ for repo in config['trees']:
     fmt['repo'] = repo
     fmt['head'] = head_rev
 
-    #
     location('/%(repo)s/source', [
         'root %(doc_root)s;',
         'try_files /file/$uri /dir/$uri/index.html =404;',
