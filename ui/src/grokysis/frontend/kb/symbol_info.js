@@ -119,7 +119,7 @@ export default class SymbolInfo extends EE {
     this.callsOutTo = null;
     this.receivesCallsFrom = null;
 
-    this._callsLastFilteredSerial = 0;
+    this._callsLastFilteredSerial = -1;
 
     /**
      * HTML document fragment containing the declaration/prototype for the
