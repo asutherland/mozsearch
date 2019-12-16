@@ -4,6 +4,8 @@ use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
 
+use itertools::Itertools;
+
 extern crate rustc_serialize;
 use self::rustc_serialize::json::{as_json, Json, Object};
 
@@ -192,9 +194,18 @@ impl AnalysisSource {
         self.syntax.append(&mut other.syntax);
         self.syntax.sort();
         self.syntax.dedup();
-        self.sym.append(&mut other.sym);
-        self.sym.sort();
-        self.sym.dedup();
+        // de-duplicate symbols without sorting the symbol list so we can maintain the original
+        // ordering which can allow the symbols to go from most-specific to least-specific.  In
+        // the face of multiple platforms with completely platform-specific symbols and where each
+        // platform has more than one symbol, this doesn't maintain a useful overall order, but the
+        // first symbol can still remain useful.  (And given in-order processing of platforms, the
+        // choice of first symbol remains stable as long as the indexer's symbol ordering remains
+        // stable.)
+        //
+        // This currently will give precedence to the order in "other" rather than "self", but
+        // it's still consistent.
+        other.sym.append(&mut self.sym);
+        self.sym.extend(other.sym.drain(0..).unique());
         self.nesting_range.union(other.nesting_range);
         // We regrettably have no guarantee that the types are the same, so just pick a type when
         // we have it.
@@ -512,7 +523,7 @@ pub fn read_source(obj: &Object) -> Option<AnalysisSource> {
         Some(json) => json.as_string().unwrap().to_string(),
         None => "".to_string(),
     };
-    let mut sym: Vec<String> = obj
+    let sym: Vec<String> = obj
         .get("sym")
         .unwrap()
         .as_string()
@@ -521,8 +532,12 @@ pub fn read_source(obj: &Object) -> Option<AnalysisSource> {
         .split(',')
         .map(str::to_string)
         .collect();
-    sym.sort();
-    sym.dedup();
+    // We used to sort() and dedup() here, with the sort() presumably happening because dup()
+    // requires it to completely eliminate duplicates.  We now no longer do either because
+    // - It's a nice property that the symbols maintain the ordering so that the first symbol can
+    //   be the most-specific symbol.
+    // - We do not expect symbol duplication to occur unless we are merging, and our merging logic
+    //   handles that.
 
     let no_crossref = match obj.get("no_crossref") {
         Some(_) => true,

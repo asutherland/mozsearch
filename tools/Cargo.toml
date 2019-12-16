@@ -13,6 +13,9 @@ log = "0.4.0"
 env_logger = "0.7.1"
 regex = "1"
 ipdl_parser = { path = "./ipdl_parser" }
+# asuth picked this version because our Cargo.lock already had 0.5.10 and 0.7.11
+# in it (of itertools).
+itertools = "0.7.11"
 getopts = "0.2.19"
 memmap = "0.5.0"
 linkify = "0.2.0"
