@@ -12,6 +12,8 @@ export default class FileInfo extends EE {
 
     this.path = path;
 
+    this.dirPath = path.split('/').slice(0, -1).join('/');
+
     // these are externally manipulated by `ensureFileAnalysis`.
     this.analyzing = false;
     this.analyzed = false;

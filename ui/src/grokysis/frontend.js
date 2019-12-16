@@ -133,6 +133,41 @@ class GrokAnalysisFrontend {
     const filtered = new FilteredResults({ rawResultsList: [rawResults] });
     return filtered;
   }
+
+  /**
+   * Fetch a raw-analysis file, returning its NDJSON payload as an array of
+   * objects.
+   */
+  async fetchFile(fetchArgs) {
+    const wireResults = await this._sendAndAwaitReply(
+      "fetchFile",
+      fetchArgs
+    );
+    return wireResults;
+  }
+
+  /**
+   * Fetch all the exposed per-tree info.  Right now this means:
+   * - repoFiles: Set of all known source-tree paths.
+   * - objdirFiles: Set of all known __GENERATED__ paths.
+   *
+   * It currently intentionally does not include a mapping for:
+   * - bugzilla-components.json: This file is 9.1M in mozilla-central.  That's
+   *   too much.  It probably makes sense to aggregate and expose our per-file
+   *   info.  (Right now that would be the bugzilla component and the extracted
+   *   file summary, mainly?)
+   */
+  async fetchTreeInfo() {
+    const wireResults = await this._sendAndAwaitReply(
+      "fetchTreeInfo",
+      {}
+    );
+
+    return {
+      repoFiles: new Set(wireResults.repoFilesList),
+      objdirFiles: new Set(wireResults.objdirFilesList),
+    };
+  }
 }
 
 export default GrokAnalysisFrontend;

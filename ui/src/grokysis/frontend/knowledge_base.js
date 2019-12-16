@@ -1,28 +1,15 @@
 import SymbolInfo from './kb/symbol_info.js';
 import FileInfo from './kb/file_info.js';
-//import FileAnalyzer from './kb/file_analyzer.js';
+import FileAnalyzer from './kb/file_analyzer.js';
 
 import ClassDiagram from './diagramming/class_diagram.js';
 
 import InternalDoodler from './diagramming/internal_doodler.js';
 
-/**
- * Hacky attempt to deal with searchfox using comma-delimited symbols in places
- * where you might not expect it.
- */
-function normalizeSymbol(symStr, commaExpected) {
-  if (!symStr) {
-    return null;
-  }
-  if (symStr.indexOf(',') !== -1) {
-    if (!commaExpected) {
-      // Get a backtrace so we can figure out who is doing this.
-      console.error('Caller passed comma-delimited symbol name:', symStr);
-    }
-    return symStr.split(',', 1)[0];
-  }
-  return symStr;
-}
+// This serves as a limit on in-edge processing for uses.  If we see that we
+// have uses across more than this many file hits for uses, then we don't
+// process uses for the given node.
+const MAX_USE_PATHLINES_LIMIT = 32;
 
 /**
  * Check if two (inclusive start offset, exclusive end offset) ranges intersect.
@@ -90,9 +77,15 @@ export default class KnowledgeBase {
     this.symbolsByRawName = new Map();
 
     /**
-     * Set of SymbolInfo instances currently undergoing analysis.
+     * Set of SymbolInfo instances currently undergoing analysis.  Primarily
+     * intended as a debugging aid.
      */
     this.analyzingSymbols = new Set();
+    /**
+     * Set of FileInfo instances currently underoing analysis.  Primarily
+     * intended as a debugging aid.
+     */
+    this.analyzingFiles = new Set();
 
     /**
      * FileInfo instances by their path relative to the root of the source dir.
@@ -101,7 +94,10 @@ export default class KnowledgeBase {
      */
     this.filesByPath = new Map();
 
-    this.fileAnalyzer = null; // new FileAnalyzer(this);
+    this.fileAnalyzer = new FileAnalyzer(this);
+
+    this.treeInfo = null;
+    window.setTimeout(() => { this._loadTreeInfo(); }, 0);
 
     /**
      * The maximum number of edges something can have before we decide that
@@ -110,6 +106,36 @@ export default class KnowledgeBase {
      * RefPtr.
      */
     this.EDGE_SANITY_LIMIT = 32;
+  }
+
+  /**
+   * If symStr is a comma-delimited list of symbols, return the first symbol.
+   * Callers should indicate whether they're intentionally doing this by passing
+   * true for `commaExpected`.
+   *
+   * Searchfox "source" records contain a symbol and the union of its
+   * cross-platform variants plus any superclass methods that it's overriding.
+   * (Whereas target records have one symbol per target record, so we can think
+   * of the source record as containing the union of all the target records for
+   * that source token.)  This is a byproduct of the initial indexer output plus
+   * the cross-platform merge logic.
+   */
+  normalizeSymbol(symStr, commaExpected) {
+    if (!symStr) {
+      return null;
+    }
+    if (symStr.indexOf(',') !== -1) {
+      if (!commaExpected) {
+        // Get a backtrace so we can figure out who is doing this.
+        console.error('Caller passed comma-delimited symbol name:', symStr);
+      }
+      return symStr.split(',', 1)[0];
+    }
+    return symStr;
+  }
+
+  async _loadTreeInfo() {
+    this.treeInfo = await this.grokCtx.fetchTreeInfo();
   }
 
   /**
@@ -136,16 +162,16 @@ export default class KnowledgeBase {
         resultSet.add(symInfo);
 
         if (!symInfo.analyzed && !symInfo.analyzing) {
-          this._processSymbolRawSymInfo(symInfo, rawSymInfo);
-          symInfo.analyzed = true;
+          this._processSymbolRawSymInfo(symInfo, rawSymInfo, 2);
+          symInfo.analyzed = 2;
         }
         continue;
       }
 
       symInfo = new SymbolInfo({ rawName });
       this.symbolsByRawName.set(rawName, symInfo);
-      this._processSymbolRawSymInfo(symInfo, rawSymInfo);
-      symInfo.analyzed = true;
+      this._processSymbolRawSymInfo(symInfo, rawSymInfo, 2);
+      symInfo.analyzed = 2;
 
       resultSet.add(symInfo);
     }
@@ -165,16 +191,20 @@ export default class KnowledgeBase {
    *
    * @param {String} [prettyName]
    */
-  lookupRawSymbol(rawName, doAnalyze, prettyName, opts) {
-    rawName = normalizeSymbol(rawName); // deal with comma-delimited symbols.
+  lookupRawSymbol(rawName, analyzeHopsInclusive, prettyName, opts) {
+    rawName = this.normalizeSymbol(rawName); // deal with comma-delimited symbols.
+    if (typeof(analyzeHopsInclusive) !== 'number') {
+      throw new Error("lookupRawSymbol now takes an inclusive hopcount");
+    }
+    analyzeHopsInclusive = Math.max(0, analyzeHopsInclusive);
 
     let symInfo = this.symbolsByRawName.get(rawName);
     if (symInfo) {
       if (prettyName && !symInfo.prettyName) {
         symInfo.updatePrettyNameFrom(prettyName);
       }
-      if (doAnalyze) {
-        this.ensureSymbolAnalysis(symInfo);
+      if (analyzeHopsInclusive && !symInfo.analyed && !symInfo.analyzing) {
+        this.ensureSymbolAnalysis(symInfo, analyzeHopsInclusive);
       }
       return symInfo;
     }
@@ -189,55 +219,74 @@ export default class KnowledgeBase {
     });
     this.symbolsByRawName.set(rawName, symInfo);
 
-    if (doAnalyze) {
-      let hops;
-      if (doAnalyze === true) {
-        // XXX this whole hops mechanism was to hack around the lack of knowing
-        // the syntaxKind of the "consumes" edges but
-        hops = 1;
-      } else {
-        hops = doAnalyze;
-      }
-      this.ensureSymbolAnalysis(symInfo, hops);
-    }
+    this.ensureSymbolAnalysis(symInfo, analyzeHopsInclusive);
 
     return symInfo;
   }
 
   /**
-   * TODO: Modernize this mechanism to load all of the definitions from a file
-   * in a single go.
-   *
-   * Given a path, asynchronously analyze and return the FileInfo that
-   * corresponds to the file.  This was previously done to get the "consumes"
-   * style edges via hacky parsing, but now we still potentially want to be able
-   * to perform analyses on source files and their matching headers.
+   * Synchronously lookup the given source file, creating it if it does not
+   * exist, and optionally initiating async analysis via `ensureFileAnalysis`.
    */
-  ensureFileAnalysis(path) {
+  lookupSourceFile(path, doAnalyze, considerHeaderFile) {
     let fi = this.filesByPath.get(path);
     if (fi) {
-      if (fi.analyzed) {
-        return fi;
+      if (doAnalyze && !fi.analyzed && !fi.analyzing) {
+        this.ensureFileAnalysis(fi, considerHeaderFile);
       }
-      if (fi.analyzing) {
-        return fi.analyzing;
-      }
-      // uh... how are we here, then?
-      console.error('uhhh...');
+      return fi;
     }
 
     fi = new FileInfo({ path });
-    //const data = await this.grokCtx.fetchFile({ path });
-
-    //fi.analyzing = this.fileAnalyzer.analyzeFile(fi, data);
     this.filesByPath.set(path, fi);
+
+    if (doAnalyze) {
+      this.ensureFileAnalysis(fi, considerHeaderFile);
+    }
+
+    return fi;
+  }
+
+  /**
+   * Asynchronously analyze a file by grabbing the raw analysis data from the
+   * server and finding all "source" "def" records.  (Noting that "def" is
+   * expressed in the "syntax" list for "source" records, it's only exposed as
+   * "kind" for "target" records.  But we pick "source" because it )
+   */
+  async ensureFileAnalysis(fi, considerHeaderFile) {
+    // XXX So the new file-analysis logic works okay on its own, but it
+    // exacerbates problems in ensureSymbolAnalysis being naive about what
+    // edges to traverse.  I've hacked a "uses" failsafe into place, which may
+    // help, but some more thought should be given to re-enabling.
+    return fi;
+/*
+    if (fi.analyzed) {
+      return fi;
+    }
+    if (fi.analyzing) {
+      return fi.analyzing;
+    }
+
+    fi.analyzing = this._analyzeFile(fi);
+    this.analyzingFiles.add(fi);
+
+    if (considerHeaderFile && /\.cpp$/.test(fi.path)) {
+      const headerPath = fi.path.replace(/\.cpp$/, '.h');
+      if (this.treeInfo && this.treeInfo.repoFiles.has(headerPath)) {
+        this.lookupSourceFile(headerPath, true, false);
+      }
+    }
+
+    await fi.analyzing;
 
     //await fi.analyzing;
     fi.analyzing = false;
     fi.analyzed = true;
+    this.analyzingFiles.delete(fi);
     fi.markDirty();
-    //console.log('finished analyzing file', fi);
+
     return fi;
+*/
   }
 
   /**
@@ -253,21 +302,23 @@ export default class KnowledgeBase {
    * locating all the members of a class or all the symbols in a compilation
    * unit.)
    */
-  async ensureSymbolAnalysis(symInfo, analyzeHops) {
-    let clampedLevel = Math.min(2, analyzeHops);
+  async ensureSymbolAnalysis(symInfo, analyzeHopsInclusive) {
+    if (analyzeHopsInclusive <= 0) {
+      return symInfo;
+    }
     if (symInfo.analyzed) {
-      if (symInfo.analyzed < clampedLevel) {
-        symInfo.analyzed = clampedLevel;
+      if (analyzeHopsInclusive && symInfo.analyzed < analyzeHopsInclusive) {
+        symInfo.analyzed = analyzeHopsInclusive;
 
         // we need to trigger analysis for all symbols in the graph.
         if (symInfo.outEdges.size < this.EDGE_SANITY_LIMIT) {
           for (let otherSym of symInfo.outEdges) {
-            this.ensureSymbolAnalysis(otherSym, analyzeHops - 1);
+            this.ensureSymbolAnalysis(otherSym, analyzeHopsInclusive - 1);
           }
         }
         if (symInfo.inEdges.size < this.EDGE_SANITY_LIMIT) {
           for (let otherSym of symInfo.inEdges) {
-            this.ensureSymbolAnalysis(otherSym, analyzeHops - 1);
+            this.ensureSymbolAnalysis(otherSym, analyzeHopsInclusive - 1);
           }
         }
       }
@@ -277,12 +328,12 @@ export default class KnowledgeBase {
       return symInfo.analyzing;
     }
 
-    symInfo.analyzing = this._analyzeSymbol(symInfo, analyzeHops);
+    symInfo.analyzing = this._analyzeSymbol(symInfo, analyzeHopsInclusive);
     this.analyzingSymbols.add(symInfo);
 
     await symInfo.analyzing;
     symInfo.analyzing = false;
-    symInfo.analyzed = clampedLevel;
+    symInfo.analyzed = analyzeHopsInclusive;
     this.analyzingSymbols.delete(symInfo);
     symInfo.markDirty();
     return symInfo;
@@ -292,7 +343,7 @@ export default class KnowledgeBase {
    * Given the raw semantic info returned from a sorch that matches a symbol,
    * process it into the given symbol.
    */
-  _processSymbolRawSymInfo(symInfo, rawSymInfo, analyzeHops=1) {
+  _processSymbolRawSymInfo(symInfo, rawSymInfo, analyzeHopsInclusive=0) {
     // Let's assume something in this method changes the symbol.
     symInfo.markDirty();
 
@@ -305,7 +356,7 @@ export default class KnowledgeBase {
 
       if (meta.srcsym) {
         const srcSym = symInfo.srcSym =
-          this.lookupRawSymbol(meta.srcsym, analyzeHops - 1);
+          this.lookupRawSymbol(meta.srcsym, analyzeHopsInclusive - 1);
         symInfo.inEdges.add(srcSym);
         srcSym.outEdges.add(symInfo);
         srcSym.markDirty();
@@ -313,15 +364,15 @@ export default class KnowledgeBase {
 
       if (meta.targetsym) {
         const targetSym = symInfo.targetSym =
-          this.lookupRawSymbol(meta.targetsym, analyzeHops - 1);
+          this.lookupRawSymbol(meta.targetsym, analyzeHopsInclusive - 1);
         symInfo.outEdges.add(targetSym);
         targetSym.inEdges.add(symInfo);
         targetSym.markDirty();
       }
 
       if (meta.idlsym) {
-        const idlSym = syminfo.idlSym =
-          this.lookupRawSymbol(meta.idlsym, analyzeHops - 1);
+        const idlSym = symInfo.idlSym =
+          this.lookupRawSymbol(meta.idlsym, analyzeHopsInclusive - 1);
         // The IDL symbol doesn't have any graph relevance since it already
         // would have provided us with the srcsym and targetsym relations.
       }
@@ -332,7 +383,7 @@ export default class KnowledgeBase {
     if (rawSymInfo.consumes) {
       for (let consumedInfo of rawSymInfo.consumes) {
         const consumedSym = this.lookupRawSymbol(
-          normalizeSymbol(consumedInfo.sym), analyzeHops - 1,
+          this.normalizeSymbol(consumedInfo.sym), analyzeHopsInclusive - 1,
           consumedInfo.pretty,
           // XXX it might be nice for consumes to provide the def location/filetype.
           { syntaxKind: consumedInfo.syntax });
@@ -354,7 +405,9 @@ export default class KnowledgeBase {
           if (useType === 'defs') {
             if (pathLinesArray.length === 1 && !symInfo.sourceFileInfo) {
               const path = pathLinesArray[0].path;
-              symInfo.sourceFileInfo = this.ensureFileAnalysis(path);
+              // Only analyze the file if we would analyze our related symbols.
+              symInfo.sourceFileInfo =
+                this.lookupSourceFile(path, analyzeHopsInclusive > 1, true);
               symInfo.sourceFileInfo.fileSymbolDefs.add(symInfo);
               symInfo.sourceFileInfo.markDirty();
             }
@@ -363,18 +416,25 @@ export default class KnowledgeBase {
             // XXX this will largely get confused by forwards
             if (pathLinesArray.length === 1 && !symInfo.declFileInfo) {
               const path = pathLinesArray[0].path;
-              symInfo.declFileInfo = this.ensureFileAnalysis(path);
+              // Because of the potential for this to be a meaningless forward,
+              // never analyze the file the decl comes from.  Instead we'll
+              // depend on the explicit reciprocal file type logic.  (Try and
+              // analyze the ".h" file for a given ".cpp" file if it exists.)
+              // TODO: Once the analyzers know hot to generate "forward" types,
+              // or we add a regexp heuristic to this logic block, reconsider
+              // doing what we do for def's.
+              symInfo.declFileInfo = this.lookupSourceFile(path, false);
               symInfo.declFileInfo.fileSymbolDecls.add(symInfo);
               symInfo.declFileInfo.markDirty();
             }
           }
-          else if (useType === 'uses') {
+          else if (useType === 'uses' && pathLinesArray.length < MAX_USE_PATHLINES_LIMIT) {
             for (const pathLines of pathLinesArray) {
               for (const lineResult of pathLines.lines) {
                 if (lineResult.contextsym) {
                   const contextSym = this.lookupRawSymbol(
                     // XXX currently the uses will have commas
-                    normalizeSymbol(lineResult.contextsym, true), analyzeHops - 1,
+                    this.normalizeSymbol(lineResult.contextsym, true), analyzeHopsInclusive - 1,
                     lineResult.context,
                     // Provide a path for pretty name mangling normalization.
                     { somePath: pathLines.path,
@@ -396,6 +456,16 @@ export default class KnowledgeBase {
     }
   }
 
+  async _analyzeFile(fileInfo) {
+    const data = await this.grokCtx.fetchFile({ path: fileInfo.path });
+    // XXX The original intent was to specify an effective inclusive hop of 2 here so that we'd
+    // analyze into other files, but not analyze those files.  But in an initial
+    // load we ended up traversing our way throughout the codebase.  I've
+    // improved some potentially incorrect logic, but I'm also setting this to 1
+    // for now.
+    this.fileAnalyzer.analyzeFile(fileInfo, data, 1);
+  }
+
   /**
    * Dig up info on a symbol by:
    * - Running a searchfox search on the symbol.
@@ -403,7 +473,7 @@ export default class KnowledgeBase {
    * - Populate incoming edge information from the "uses" results.
    * - Populate outgoing edge information from the "consumes" results.
    */
-  async _analyzeSymbol(symInfo, analyzeHops) {
+  async _analyzeSymbol(symInfo, analyzeHopsInclusive) {
     // Perform the raw Searchfox search.
     const filteredResults =
       await this.grokCtx.performSearch(`symbol:${symInfo.rawName}`);
@@ -417,7 +487,7 @@ export default class KnowledgeBase {
         continue;
       }
 
-      this._processSymbolRawSymInfo(symInfo, rawSymInfo, analyzeHops);
+      this._processSymbolRawSymInfo(symInfo, rawSymInfo, analyzeHopsInclusive);
     }
   }
 
@@ -458,7 +528,7 @@ export default class KnowledgeBase {
     }
 
     for (const symName of (gdef.symbols || [])) {
-      const symInfo = this.lookupRawSymbol(symName);
+      const symInfo = this.lookupRawSymbol(symName, 2);
       symPromises.push(this.ensureSymbolAnalysis(symInfo, 1));
     }
 
@@ -489,7 +559,7 @@ export default class KnowledgeBase {
     const symbols = await this._lookupSymbolsFromGraphDef(gdef);
 
     switch (gdef.mode) {
-      case 'me'
+      default:
     }
   }
 

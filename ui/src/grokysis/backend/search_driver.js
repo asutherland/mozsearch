@@ -90,15 +90,36 @@ export default class SearchDriver {
   }
 
   /**
-   * Fetch the augmented searchfox page for the given path from the backend with
-   * caching semantics.
+   * Fetch a newline delimited JSON raw-analysis file from the backend.  We
+   * fetch the body as text and munge it.
    */
   async fetchFile({ path }) {
-    const url = `/${this.treeName}/source/${path}`;
+    const url = `/${this.treeName}/raw-analysis/${path}`;
 
-    const resp = await this._cachingFetch(url);
-    const data = await resp.json();
-
+    const resp = await fetch(
+      url,
+    {
+      headers: {
+        'Accept': 'text/plain'
+      }
+    });
+    const rawStr = await resp.text();
+    const normalized = "[" + rawStr.replace(/\n\r?/g, ',\n').slice(0, -2) + "]";
+    const data = JSON.parse(normalized);
     return data;
+  }
+
+  _processNewlineDelimitedStrings(str) {
+    return str.split(/\n\r?/g);
+  }
+
+  async fetchTreeInfo() {
+    const repoFileResp = await fetch(`/${this.treeName}/file-lists/repo-files`);
+    const objdirFileResp = await fetch(`/${this.treeName}/file-lists/objdir-files`);
+
+    return {
+      repoFilesList: this._processNewlineDelimitedStrings(await repoFileResp.text()),
+      objdirFilesList: this._processNewlineDelimitedStrings(await objdirFileResp.text()),
+    };
   }
 }

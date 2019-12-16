@@ -57,21 +57,29 @@ class BackendRouter {
   }
 
   _sendSuccessReply(msgId, payload) {
-    this._port.postMessage({
-      type: "reply",
-      msgId,
-      success: true,
-      payload
-    });
+    try {
+      this._port.postMessage({
+        type: "reply",
+        msgId,
+        success: true,
+        payload
+      });
+    } catch (ex) {
+      console.error('problem calling postMessage on payload', payload, ex);
+    }
   }
 
   _sendFailureReply(msgId, err) {
-    this._port.postMessage({
-      type: "reply",
-      msgId,
-      success: false,
-      payload: err.message
-    });
+    try {
+      this._port.postMessage({
+        type: "reply",
+        msgId,
+        success: false,
+        payload: err.message
+      });
+    } catch (ex) {
+      console.error('problem calling postMessage on error payload', err.message, ex);
+    }
   }
 
   async msg_init({ name }) {
@@ -93,6 +101,10 @@ class BackendRouter {
 
   msg_fetchFile(fetchArgs) {
     return this.searchDriver.fetchFile(fetchArgs);
+  }
+
+  msg_fetchTreeInfo() {
+    return this.searchDriver.fetchTreeInfo();
   }
 
   //////////////////////////////////////////////////////////////////////////////

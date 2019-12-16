@@ -64,10 +64,7 @@ function renderGraphsInCodeBlocks({ grokCtx }) {
         return node;
       }
 
-      if (node.value.includes(' ')) {
-        // any whitespace disqualifies it.
-        return node;
-      }
+      const gdef = JSON.parse(node.value);
 
       eligibleNodes.push(node);
 

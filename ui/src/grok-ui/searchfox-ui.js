@@ -42,7 +42,7 @@ function makeGrokContext() {
         symbolInfo: {
           factory: ({ symInfo, fromSymInfo }, grokCtx, sessionThing) => {
             // Trigger full analysis of the symbol.
-            grokCtx.kb.ensureSymbolAnalysis(symInfo);
+            grokCtx.kb.ensureSymbolAnalysis(symInfo, 1);
             return {
               popupProps: {},
               contents: (
@@ -64,7 +64,7 @@ function makeGrokContext() {
             // Do asynchronously trigger full analysis of the symbol.
             const symInfo =
               grokCtx.kb.lookupRawSymbol(
-                persisted.rawSymbol, true, persisted.pretty);
+                persisted.rawSymbol, 2, persisted.pretty);
 
             return {
               labelWidget: `Symbol: ${ symInfo.prettiestName }`,
@@ -124,7 +124,7 @@ function semanticInfoFromTarget(target) {
       // redundant pointers to the current code location are automatically
       // suppressed.  At the very least, the prettyInfo could be available from
       // the rawSymInfo
-      symInfo = gGrokCtx.kb.lookupRawSymbol(firstSym, true);
+      symInfo = gGrokCtx.kb.lookupRawSymbol(firstSym, 2);
     }
   }
 

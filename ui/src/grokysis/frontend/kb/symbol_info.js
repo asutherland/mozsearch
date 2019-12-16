@@ -201,7 +201,8 @@ export default class SymbolInfo extends EE {
    * variations where we use the bugzilla component mapping.
    */
   isSameDirectoryAs(otherSym) {
-
+    return this.sourceFileInfo && otherSym.sourceFileInfo &&
+             this.sourceFileInfo.dirPath === otherSym.sourceFileInfo.dirPath;
   }
 
   updatePrettyNameFrom(prettyName, path) {
