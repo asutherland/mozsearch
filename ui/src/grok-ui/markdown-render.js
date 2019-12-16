@@ -56,8 +56,6 @@ function renderGraphsInCodeBlocks({ grokCtx }) {
   const kb = grokCtx.kb;
 
   return function transformer(ast, vFile, next) {
-    const eligibleNodes = [];
-    const lookups = new Map();
     const promises = [];
     visit(ast, 'code', (node) => {
       if (node.lang !== 'searchfox-graph-v1') {
@@ -66,22 +64,15 @@ function renderGraphsInCodeBlocks({ grokCtx }) {
 
       const gdef = JSON.parse(node.value);
 
-      eligibleNodes.push(node);
+      const svgPromise = kb.renderSVGDiagramFromGraphDef(gdef);
 
-      // keep going if we're already looking up this value.
-      const useId = normalizeId(node.value);
-      if (lookups.has(useId)) {
-        return node;
-      }
-
-      lookups.set(useId, undefined);
-      const p = kb.findSymbolsGivenId(useId);
-      promises.push(p.then(
-        (symbolSet) => {
-          lookups.set(useId, symbolSet);
+      promises.push(svgPromise.then(
+        (svgStr) => {
+          node.type = 'html';
+          node.value = svgStr;
         },
-        () => {
-          lookups.set(useId, null);
+        (err) => {
+          node.value = 'Graph failed to render: ' + err;
         }));
 
       return node;
@@ -89,29 +80,11 @@ function renderGraphsInCodeBlocks({ grokCtx }) {
 
     Promise.all(promises).then(
       () => {
-        for (const node of eligibleNodes) {
-          const useId = normalizeId(node.value);
-          const symbolSet = lookups.get(useId);
-          // Skip nodes that didn't resolve to symbols.
-          if (!symbolSet) {
-            continue;
-          }
-
-          const symbolNames =
-            Array.from(symbolSet).map((sym) => sym.rawName).join(',');
-
-          // Annotate the node with embedded hast data.
-          node.data = {
-            hProperties: {
-              className: ['syn_def'],
-              'data-symbols': symbolNames
-            },
-          };
-        }
+        // All the ndoes have been fixed up now, hackily.  Hooray!
         next(null, ast, vFile);
       },
       (rejections) => {
-        console.warn('rejections while processing markdwon', rejections);
+        console.warn('rejections while processing graph', rejections);
         next(null, ast, vFile);
       });
   };
@@ -189,7 +162,7 @@ function markIdentifiersInInlineCode({ grokCtx }) {
         next(null, ast, vFile);
       },
       (rejections) => {
-        console.warn('rejections while processing markdwon', rejections);
+        console.warn('rejections while processing markdown', rejections);
         next(null, ast, vFile);
       });
   };
@@ -199,6 +172,7 @@ export async function markdownRenderFromStr(markdownStr, grokCtx) {
   const domNodes = await unified()
   .use(markdown)
   .use(markIdentifiersInInlineCode, { grokCtx })
+  .use(renderGraphsInCodeBlocks, { grokCtx })
   .use(remark2rehype)
   // TODO: determine to what extent this makes sense, it's already the case that
   // the source tree lives inside a trust boundary.  If we enable this,

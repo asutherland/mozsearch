@@ -5,6 +5,7 @@ import FileAnalyzer from './kb/file_analyzer.js';
 import ClassDiagram from './diagramming/class_diagram.js';
 
 import InternalDoodler from './diagramming/internal_doodler.js';
+import PathsBetweenDoodler from './diagramming/paths_between_doodler.js';
 
 // This serves as a limit on in-edge processing for uses.  If we see that we
 // have uses across more than this many file hits for uses, then we don't
@@ -560,7 +561,20 @@ export default class KnowledgeBase {
 
     switch (gdef.mode) {
       default:
+      case "paths-between": {
+        const doodler = new PathsBetweenDoodler();
+        doodler.doodle(symbols, diagram);
+        break;
+      }
     }
+
+    const dot = diagram.lowerToGraphviz();
+    const svgStr = await this.graphCtx.vizJs.renderString(dot, {
+      engine: "dot",
+      format: "svg",
+    });
+
+    return svgStr;
   }
 
   restoreDiagram(serialized) {

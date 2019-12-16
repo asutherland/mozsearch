@@ -1,4 +1,13 @@
 
+```searchfox-graph-v1
+{
+  "mode": "paths-between",
+  "identifiers":
+    ["GlobalContext::decideBooleanTrait",
+     "GlobalContext::decideCatBooleanTrait",
+     "GlobalContext::decideDogBooleanTrait"]
+}
+```
 
 Here are some interesting symbols:
 - `GlobalContext`
