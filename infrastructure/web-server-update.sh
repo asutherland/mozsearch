@@ -29,3 +29,13 @@ rustup update
 pushd mozsearch/tools
 cargo build --release --verbose
 popd
+
+# install node for the fancy UI
+curl -sL https://deb.nodesource.com/setup_13.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# build the fancy UI
+pushd mozsearch/ui
+npm install
+npm run-script build
+popd
