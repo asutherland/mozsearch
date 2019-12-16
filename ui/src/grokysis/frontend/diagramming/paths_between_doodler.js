@@ -7,7 +7,7 @@ const MAX_CALLER_COUNT_FOR_TRAVERSAL_IN = 4;
  * those symbols.  (By direct control flow, we mean that )
  */
 export default class PathsBetweenDoodler {
-  doodleMethodInternalEdges(startSyms, diagram) {
+  doodle(startSyms, diagram) {
     const strongRoots = new Set();
 
     for (const sym of startSyms) {

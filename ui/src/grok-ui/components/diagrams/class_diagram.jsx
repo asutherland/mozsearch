@@ -14,7 +14,7 @@ export default class ClassDiagram extends DirtyingComponent {
     if (this.diagramRef.current) {
       const diagram = this.props.diagram;
       const grokCtx = diagram.grokCtx;
-      const dot = diagram.lowerToGraphviz();
+      const { dot } = diagram.lowerToGraphviz();
       //console.log('rendering DOT:\n' + dot);
       grokCtx.vizJs.renderSVGElement(dot).then((elem) => {
         const container = this.diagramRef.current;

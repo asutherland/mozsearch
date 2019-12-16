@@ -568,11 +568,13 @@ export default class KnowledgeBase {
       }
     }
 
-    const dot = diagram.lowerToGraphviz();
-    const svgStr = await this.graphCtx.vizJs.renderString(dot, {
+    const { dot, fixupSVG } = diagram.lowerToGraphviz();
+    //console.log("dot:", dot);
+    const svgStr = fixupSVG(await this.grokCtx.vizJs.renderString(dot, {
       engine: "dot",
       format: "svg",
-    });
+    }));
+    //console.log("svg:", svgStr);
 
     return svgStr;
   }

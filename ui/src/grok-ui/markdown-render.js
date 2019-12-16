@@ -1,6 +1,7 @@
 import unified from 'unified';
 import markdown from 'remark-parse';
 import remark2rehype from 'remark-rehype';
+import raw from 'rehype-raw';
 //import sanitize from 'rehype-sanitize';
 import toDOM from 'hast-util-to-dom';
 
@@ -62,6 +63,7 @@ function renderGraphsInCodeBlocks({ grokCtx }) {
         return node;
       }
 
+      //console.log('got graph JSON of', node.value);
       const gdef = JSON.parse(node.value);
 
       const svgPromise = kb.renderSVGDiagramFromGraphDef(gdef);
@@ -173,11 +175,18 @@ export async function markdownRenderFromStr(markdownStr, grokCtx) {
   .use(markdown)
   .use(markIdentifiersInInlineCode, { grokCtx })
   .use(renderGraphsInCodeBlocks, { grokCtx })
-  .use(remark2rehype)
+  // We need to enable allowDangerousHTML in order to get the "html" blocks
+  // produced by `renderGraphsInCodeBlocks` passed-through.  We should look
+  // into using embedded hast data like hChildren, but that either requires a
+  // raw node or full conversion to a hast-tree directly, etc.  So we just do
+  // this for now.
+  .use(remark2rehype, { allowDangerousHTML: true })
   // TODO: determine to what extent this makes sense, it's already the case that
   // the source tree lives inside a trust boundary.  If we enable this,
   // data-symbols needs to be allowed, plus the class.
   //.use(sanitize)
+  // And we need this enabled to actually convert the raw HTML into HTML.
+  .use(raw)
   .use(compileToDOM)
   .process(markdownStr);
 

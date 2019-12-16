@@ -100,6 +100,7 @@ class HierBuilder {
     this.symsToHierNodes = new Map();
 
     this.idCounter = 0;
+    this.idToNode = new Map();
   }
 
   /**
@@ -243,6 +244,8 @@ class HierBuilder {
       node.edgeInId = node.edgeOutId = node.id;
     }
 
+    this.idToNode.set(node.id, node);
+
     for (const kid of node.kids.values()) {
       this._determineNodeAction(kid, beClass, beInTable);
     }
@@ -310,7 +313,7 @@ class HierBuilder {
 
   renderToDot() {
     const dotBody = this._renderNode(this.root, INDENT);
-    const dot = `digraph G {
+    const dot = `digraph "" {
   newrank = true;
   rankdir = "LR";
   fontname = "Arial";
@@ -703,6 +706,19 @@ export default class ClassDiagram extends EE {
     builder.determineNodeActions();
 
     // ## And now the actual dot source!
-    return builder.renderToDot();
+    return {
+      dot: builder.renderToDot(),
+      fixupSVG: (svgStr) => {
+        return svgStr.replace(/>\n<title>([^<]+)<\/title>/g, (match, nodeId) => {
+          const node = builder.idToNode.get(nodeId);
+          if (!node || !node.sym) {
+            // Just eat the title if we can't find the node.
+            return '>';
+          }
+
+          return ` data-symbols=${node.sym.rawName}>`;
+        });
+      }
+    };
   }
 }
