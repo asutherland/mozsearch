@@ -77,8 +77,28 @@ export default class KBSymbolInfo extends DirtyingComponent {
       render: () => {
         const diagram = this.props.grokCtx.kb.diagramSymbol(symInfo, 'method');
 
+        let maybeDecl;
+        if (symInfo.declPeek) {
+          maybeDecl = (
+            <div>
+              <pre>{symInfo.declPeek}</pre>
+            </div>
+          );
+        }
+
+        let maybeDef;
+        if (symInfo.defPeek) {
+          maybeDef = (
+            <div>
+              <pre>{symInfo.defPeek}</pre>
+            </div>
+          );
+        }
+
         return (
           <Tab.Pane>
+            { maybeDecl }
+            { maybeDef }
             <ClassDiagram diagram={ diagram } />
           </Tab.Pane>
         );

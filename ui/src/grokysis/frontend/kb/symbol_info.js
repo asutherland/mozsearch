@@ -92,6 +92,9 @@ export default class SymbolInfo extends EE {
     this.targetSym = null;
     this.idlSym = null;
 
+    this.declPeek = null;
+    this.defPeek = null;
+
     /**
      * Indicates if we believe this symbol to be unimportant to understanding
      * the program at a higher level.  For example, string manipulation code is

@@ -412,6 +412,13 @@ export default class KnowledgeBase {
               symInfo.sourceFileInfo.fileSymbolDefs.add(symInfo);
               symInfo.sourceFileInfo.markDirty();
             }
+
+            if (pathLinesArray.length === 1 && pathLinesArray[0].lines.length === 1) {
+              const line = pathLinesArray[0].lines[0];
+              if (line.peekLines) {
+                symInfo.defPeek = line.peekLines;
+              }
+            }
           }
           else if (useType === 'decls') {
             // XXX this will largely get confused by forwards
@@ -427,6 +434,13 @@ export default class KnowledgeBase {
               symInfo.declFileInfo = this.lookupSourceFile(path, false);
               symInfo.declFileInfo.fileSymbolDecls.add(symInfo);
               symInfo.declFileInfo.markDirty();
+            }
+
+            if (pathLinesArray.length === 1 && pathLinesArray[0].lines.length === 1) {
+              const line = pathLinesArray[0].lines[0];
+              if (line.peekLines) {
+                symInfo.declPeek = line.peekLines;
+              }
             }
           }
           else if (useType === 'uses' && pathLinesArray.length < MAX_USE_PATHLINES_LIMIT) {
