@@ -2,25 +2,9 @@ import React from 'react';
 
 import ClassDiagram from '../diagrams/class_diagram.jsx';
 
-export default class DiagramSheet extends React.Component {
+export class DiagramSheet extends React.Component {
   constructor(props) {
     super(props);
-
-    this.onAddEdge = this.onAddEdge.bind(this);
-  }
-
-  componentDidMount() {
-    this.props.sessionThing.handleSlotMessage(
-      'addEdge', this.onAddEdge);
-  }
-
-  componentWillUnmount() {
-    this.props.sessionThing.stopHandlingSlotMessage('addEdge');
-  }
-
-  onAddEdge({ from, to }) {
-    const diagram = this.props.diagram;
-    diagram.ensureEdge(from, to);
   }
 
   render() {
@@ -29,3 +13,44 @@ export default class DiagramSheet extends React.Component {
     );
   }
 }
+
+export class DiagramModel {
+  constructor({ sessionThing, diagram }) {
+    this.sessionThing = sessionThing;
+    this.diagram = diagram;
+
+    this.sessionThing.handleSlotMessage(
+      'addEdge', this.onAddEdge.bind(this));
+  }
+
+  destroy() {
+    this.sessionThing.stopHandlingSlotMessage('addEdge');
+  }
+
+  onAddEdge({ from, to }) {
+    this.diagram.ensureEdge(from, to);
+  }
+}
+
+export let DiagramSheetBinding = {
+  slotName: 'diagram',
+  spawnable: 'Diagram',
+  makeModel(sessionThing, persisted) {
+    const diagram =
+      sessionThing.grokCtx.kb.restoreDiagram(persisted.serialized || null);
+    return new DiagramModel({ sessionThing, diagram });
+  },
+
+  makeLabelForModel(sessionThing, model) {
+    return model.diagram.name;
+  },
+
+  makeWidgetForModel(sessionThing, model) {
+    return (
+      <DiagramSheet
+        sessionThing={ model.sessionThing }
+        diagram={ model.diagram }
+        />
+    );
+  }
+};

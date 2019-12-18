@@ -355,6 +355,9 @@ export default class ClassDiagram extends EE {
 
     this.grokCtx = grokCtx;
 
+    // In the future diagrams should be able to be named.
+    this.name = 'Diagram';
+
     this.serial = 0;
     this.batchDepth = 0;
     this._serialWhenBatchBegan = 0;

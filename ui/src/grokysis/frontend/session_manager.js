@@ -50,25 +50,18 @@ import SessionPopupManager from './session_popup_manager.js';
  *   must include a `factory` which is a function that takes `(persisted,
  *   grokCtx, sessionThing)` arguments and returns an object dictionary
  *   containing:
- *   - labelWidget:
- *     React payload to display as the sheet's label.  This is passed as-is to
- *     the sheet's render method from the get-go.
- *   - [awaitContent]:
- *      An optional Promise that delays the invocation of the contentFactory
- *      method until the content is available.  The name is chosen to make the
- *      asynchrony super explicit.
- *   - contentFactory:
- *     A function that should take two arguments, props and content.  The
- *     function should return a React payload with the provided props spread
- *     into the component plus whatever else you put in there.  props is
- *     guaranteed to include an `addSheet` bound method that takes these
- *     same arguments (with this and relId already bound).  props is also
- *     guaranteed to include a `removeThisSheet` bound method, primarily
- *     intended for the NotebookSheet to use, although it should also pass it
- *     in to the content.
+ *   - makeModel(sessionThing, persisted):
+ *     Creates a model instance that lives for as long as the SessionThing.
+ *     Must implement a `destroy()` method to cleanup when the SessionThing is
+ *     removed.
+ *   - makeLabelForModel(model):
+ *     Return a JSX-ish thing to use to display a label.
+ *   - makeWidgetForModel(model):
+ *     Return a JSX-ish thing that's the actual UI representation of the model.
+ *     This will frequently be a relatively thin widget that wraps a complex
+ *     DirtyingComponent.
  *   - [permanent=false]:
  *     If true, the sheet shouldn't be removable.
- *
  */
 export default class SessionManager extends EE {
   constructor({ name, tracks, defaults, popupBindings, sheetBindings }, grokCtx,
@@ -159,7 +152,6 @@ export default class SessionManager extends EE {
    */
   makeDefaultSessionMeta() {
     return {
-      collapsed: false
     };
   }
 

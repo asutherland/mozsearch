@@ -9,8 +9,11 @@ const DB_SESSION_THINGS = 'session-things';
 export default class BackendDB {
   constructor({ name }) {
     this.dbName = `grok-${name}`;
-    this.dbVersion = 4; // want static properties.
+    this.dbVersion = 7; // want static properties.
     this.db = null;
+    this.dbReady = new Promise((ready) => {
+      this._resolveDBReady = ready;
+    });
   }
 
   /**
@@ -44,6 +47,8 @@ export default class BackendDB {
 
       freshDb = true;
     });
+    this._resolveDBReady(db);
+    this._resolveDBReady = null;
 
     console.log('DB: freshly created?', freshDb);
 
@@ -85,8 +90,9 @@ export default class BackendDB {
   /**
    * Set string key to any IDB-friendly value.
    */
-  setGlobal(key, value) {
-    const tx = this.db.transaction([DB_GLOBAL], 'readwrite');
+  async setGlobal(key, value) {
+    const db = await this.dbReady;
+    const tx = db.transaction([DB_GLOBAL], 'readwrite');
     tx.objectStore(DB_GLOBAL).put(value, key);
     return tx.complete;
   }
@@ -95,7 +101,8 @@ export default class BackendDB {
    * Set a self-identified via `id` property IDB-friendly value.
    */
   async setSessionThing(thing) {
-    const tx = this.db.transaction([DB_SESSION_THINGS], 'readwrite');
+    const db = await this.dbReady;
+    const tx = db.transaction([DB_SESSION_THINGS], 'readwrite');
     tx.objectStore(DB_SESSION_THINGS).put(thing);
     return tx.complete;
   }
@@ -105,7 +112,8 @@ export default class BackendDB {
    * doesn't happen).
    */
   async deleteSessionThingById(id) {
-    const tx = this.db.transaction([DB_SESSION_THINGS], 'readwrite');
+    const db = await this.dbReady;
+    const tx = db.transaction([DB_SESSION_THINGS], 'readwrite');
     tx.objectStore(DB_SESSION_THINGS).delete(id);
     return tx.complete;
   }

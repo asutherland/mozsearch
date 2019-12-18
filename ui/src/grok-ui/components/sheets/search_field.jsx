@@ -4,7 +4,7 @@ import React from 'react';
 /**
  * Provides a search field that produces SearchResults sheets when enter is hit.
  */
-export default class SearchFieldSheet extends React.Component {
+export class SearchFieldSheet extends React.Component {
   constructor(props) {
     super(props);
 
@@ -46,3 +46,33 @@ export default class SearchFieldSheet extends React.Component {
     );
   }
 }
+
+export class SearchFieldModel {
+  constructor() {
+
+  }
+}
+
+export let SearchFieldBinding = {
+  makeModel(/*sessionThing, persisted */) {
+    // The model needs to exist and have a destroy method right now.  But it's
+    // not clear we gain anything by actually having a model.  If this idiom
+    // ends up common, it may be worth supporting a special value of undefined,
+    // but it's probably more understandable to just have simple dummy objects
+    // like this.
+    return { destroy: () => {} };
+  },
+
+  makeLabelForModel(/*sessionThing, model */) {
+    return 'Search';
+  },
+
+  makeWidgetForModel(sessionThing/*, model */) {
+    return (
+      <SearchFieldSheet
+        sessionThing={ sessionThing }
+        initialValue={ sessionThing.persisted.initialValue }
+        />
+    );
+  }
+};

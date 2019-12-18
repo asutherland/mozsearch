@@ -1,0 +1,9 @@
+.sessionTabbedContainer {
+  width: 100%;
+  padding: 0.6rem;
+  overflow: hidden;
+}
+
+.sessionTabbedContainer div {
+  height: 100%;
+}

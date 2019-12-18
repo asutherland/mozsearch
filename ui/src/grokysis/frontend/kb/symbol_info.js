@@ -304,6 +304,19 @@ export default class SymbolInfo extends EE {
         this.isBoring = true;
       }
     }
+    if (this.localName) {
+      const ln = this.localName;
+      if (ln.startsWith('Assert') ||
+          ln.startsWith('Is') ||
+          // Get and Set can both potentially be interesting, it would arguably
+          // be better to have a complexity measure for methods and things that
+          // look like straight lookups modulo some guards get marked boring.
+          ln.startsWith('Get') ||
+          ln.startsWith('Set') ||
+          ln === 'AddRef' || ln === 'Release') {
+        this.isBoring = true;
+      }
+    }
     if (this.fullName) {
       const fn = this.fullName;
       if (fn.startsWith('nsCOMPtr') || fn.startsWith('RefPtr') ||

@@ -35,6 +35,19 @@ export default class SessionTrack extends EE {
     }
   }
 
+  /**
+   * Make sure there's a thing in this track.  In the future this might be used
+   * to make sure a specific type of thing exists, but for now it's just a hack
+   * to provide for a SessionThing for the searchfox source code listing which
+   * does not currently live in a SessionThing.
+   */
+  ensureThing(params) {
+    if (this.things.length) {
+      return this.things[0];
+    }
+    return this.addThing(null, null, params);
+  }
+
   addThing(relThing, useId,
            { position, type, persisted, sessionMeta, restored }) {
     if (!useId) {
@@ -70,10 +83,10 @@ export default class SessionTrack extends EE {
       console.warn("binding not a dictionary for type:", type);
       throw new Error("binding wasn't an object");
     }
-    if (typeof(binding.factory) !== 'function') {
-      console.warn("bindingFactory not a function:", binding.factory,
+    if (typeof(binding.makeModel) !== 'function') {
+      console.warn("makeModel not a function:", binding.makeModel,
                    "for type", type);
-      throw new Error("binding factory wasn't a function");
+      throw new Error("binding makeModel wasn't a function");
     }
 
     const thing =

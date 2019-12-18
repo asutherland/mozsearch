@@ -10,13 +10,19 @@
  * ## Important Context
  */
 
+import Split from 'split.js';
+
 import React from 'react';
 import ReactDOM from 'react-dom';
 
 import SessionPopupContainer from
   './components/session_notebook/session_popup_container.jsx';
+import SessionTabbedContainer from
+  './components/session_notebook/session_tabbed_container.jsx';
 
 import KBSymbolViewSheet from './components/sheets/kb_symbol_view.jsx';
+import { DiagramSheetBinding } from './components/sheets/diagram.jsx';
+import { SearchFieldBinding } from './components/sheets/search_field.jsx';
 
 import KBSymbolInfoPopup from './components/popups/kb_symbol_info.jsx';
 
@@ -32,10 +38,21 @@ function makeGrokContext() {
   const outerGrokCtx = window.GROK_CTX = new GrokAnalysisFrontend({
     session: {
       name: treeName,
-      tracks: ['shelf'],
+      tracks: ['top', 'source'],
       defaults: {
-        shelf: [
-        ]
+        top: [
+          {
+            type: 'searchField',
+            persisted: {
+              initialValue: ''
+            }
+          },
+          {
+            type: 'diagram',
+            persisted: {}
+          }
+        ],
+        source: []
       },
 
       popupBindings: {
@@ -59,33 +76,29 @@ function makeGrokContext() {
       },
 
       sheetBindings: {
-        symbolView: {
-          factory: (persisted, grokCtx) => {
-            // Do asynchronously trigger full analysis of the symbol.
-            const symInfo =
-              grokCtx.kb.lookupRawSymbol(
-                persisted.rawSymbol, 2, persisted.pretty);
-
-            return {
-              labelWidget: `Symbol: ${ symInfo.prettiestName }`,
-              contentPromise: null,
-              contentFactory: (props) => {
-                return (
-                  <KBSymbolViewSheet {...props}
-                    symInfo={ symInfo }
-                    />
-                );
-              }
-            };
-          },
-        },
+        searchField: SearchFieldBinding,
+        diagram: DiagramSheetBinding,
+        // sentinel sourceView thing.
+        sourceView: {
+          makeModel() {
+            return null;
+          }
+        }
       }
     }
   });
+
+  gSourceSessionThing =
+    outerGrokCtx.sessionManager.tracks.source.ensureThing(
+      { type: 'sourceView', persisted: {} }
+    );
+
   return outerGrokCtx;
 }
 
+let gSourceSessionThing = null;
 const gGrokCtx = makeGrokContext();
+
 
 function symbolsFromString(symbols) {
   if (!symbols || symbols === "?") { // unclear what the "?" was for
@@ -101,6 +114,7 @@ function symbolsFromString(symbols) {
 function semanticInfoFromTarget(target) {
   let jumps = null, searches = null, symbolNames = null;
   let rawMetaInfo = null, symInfo = null, visibleTokenText = null;
+  let nestingSymInfo = null;
 
   const win = target.ownerDocument.defaultView;
 
@@ -126,9 +140,25 @@ function semanticInfoFromTarget(target) {
       // the rawSymInfo
       symInfo = gGrokCtx.kb.lookupRawSymbol(firstSym, 2);
     }
+
+    const nestingElem = target.closest('[data-nesting-sym]');
+    if (nestingElem) {
+      nestingSymInfo =
+        gGrokCtx.kb.lookupRawSymbol(nestingElem.dataset.nestingSym, 2);
+      // The nesting heuristic is a little naive in that the nesting block also
+      // includes the sticky line.  We don't want to create self-cycles in this
+      // case.  (Although there are legit cycles we're suppressing this way.)
+      //
+      // If we create proper highlight regions for the blocks, we can leverage
+      // that instead.
+      if (nestingSymInfo === symInfo) {
+        nestingSymInfo = null;
+      }
+    }
   }
 
-  return { jumps, searches, symbolNames, rawMetaInfo, symInfo, visibleTokenText };
+  return { jumps, searches, symbolNames, rawMetaInfo, symInfo, visibleTokenText,
+           nestingSymInfo };
 }
 
 
@@ -143,7 +173,8 @@ class SymbolHighlighter {
     // We might be better off having this method take the pre-symbolsFromString
     // string value so we don't need to re-stringify, but the cost of this is
     // low relative to not doing this fast-path out.
-    if (existingGroupInfo.visibleTokenText === visibleTokenText &&
+    if (existingGroupInfo &&
+        existingGroupInfo.visibleTokenText === visibleTokenText &&
         existingGroupInfo.symbolNames.toString() === symbolNames.toString()) {
       // Nothing to do if we already highlighted the things in question.
       return;
@@ -185,9 +216,12 @@ class SymbolHighlighter {
 
     const symbolSet = new Set(symbolNames);
     // XXX iframe doc awareness
-    return [...document.querySelectorAll("span[data-symbols]")].filter(span => {
-      return span.textContent === visibleTokenText &&
-        symbolsFromString(span.getAttribute("data-symbols"))
+    return [...document.querySelectorAll("[data-symbols]")].filter(span => {
+      // I'm eliminating the textContent constraint for now because it's cool
+      // to have SVG diagram nodes get highlighted, but it may be necessary
+      // to just special-case for that.
+      //span.textContent === visibleTokenText &&
+      return symbolsFromString(span.getAttribute("data-symbols"))
         .some(symbol => symbolSet.has(symbol));
     });
   }
@@ -204,12 +238,12 @@ const gHighlighter = new SymbolHighlighter();
 function onSourceMouseMove(evt) {
   // We only want the "symbols" for hover highlighting, but we do desire the
   // side-effect of the `symInfo` lookup occurring.
-  const { symbols, visibleTokenText } = semanticInfoFromTarget(evt.target);
+  const { symbolNames, visibleTokenText } = semanticInfoFromTarget(evt.target);
 
   // Are we hovering anything?
-  if (symbols) {
+  if (symbolNames) {
     gHighlighter.highlightSymbolsWithToken(
-      "hovered", symbols, visibleTokenText);
+      "hovered", symbolNames, visibleTokenText);
   } else {
     gHighlighter.stopHighlightingGroup("hovered");
   }
@@ -219,7 +253,7 @@ function onSourceMouseMove(evt) {
  * Handle a click inside a source listing and display a menu.
  */
 function onSourceClick(evt) {
-  const { symInfo, /*symbols, visibleTokenText*/ } =
+  const { symInfo, nestingSymInfo, /*symbols, visibleTokenText*/ } =
     semanticInfoFromTarget(evt.target);
 
   if (!symInfo) {
@@ -229,16 +263,11 @@ function onSourceClick(evt) {
   evt.stopPropagation();
 
   gGrokCtx.sessionManager.popupManager.showPopup(
-    null,
+    gSourceSessionThing,
     "symbolInfo",
     {
       symInfo,
-      // TODO: provide a means of reliably identifying the containing symbol
-      // of specific uses in the source.  We have this in the analysis data
-      // and this could be part of the contextual data-i style information.
-      // (That is, data-i could provide the additional information about a
-      // specific instance/use that deviates from the referenced symbol.)
-      fromSymInfo: null
+      fromSymInfo: nestingSymInfo
     },
     evt.target);
 }
@@ -251,10 +280,12 @@ function onSourceClick(evt) {
  * handling (with megamenu changes).
  */
 function bindSourceClickHandling(doc) {
-  const fileElem = doc.getElementById('file');
+  // Originally this was meant to just be the file object, but I also like these
+  // clicks in the header.
+  const rootClickElem = doc.body; //doc.getElementById('file');
 
-  fileElem.addEventListener('mousemove', onSourceMouseMove);
-  fileElem.addEventListener('click', onSourceClick);
+  rootClickElem.addEventListener('mousemove', onSourceMouseMove);
+  rootClickElem.addEventListener('click', onSourceClick);
 
   //window.addEventListener('mousedown', onMouseDown);
 }
@@ -280,6 +311,35 @@ function createPopupWidget() {
   ReactDOM.render(popupTags, contentNode);
 }
 createPopupWidget();
+
+let gSplit;
+/**
+ * This converts the
+ */
+function replaceSearchboxWithOverwhelmingComplexity() {
+  const headerElem = document.getElementById('fixed-header');
+  const scrollingElem = document.getElementById('scrolling');
+
+  // So long, old timey search UI!
+  headerElem.textContent = '';
+
+  const headerTags = (
+    <SessionTabbedContainer
+      grokCtx={ gGrokCtx }
+      trackName="top" />
+  );
+
+  ReactDOM.render(headerTags, headerElem);
+
+  // Setup the split.
+  gSplit = Split(
+    [headerElem, scrollingElem],
+    {
+      direction: 'vertical',
+      sizes: [10, 90],
+    });
+}
+replaceSearchboxWithOverwhelmingComplexity();
 
 async function onLoad() {
   const filename = document.location.pathname.split('/').slice(-1)[0];

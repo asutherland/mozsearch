@@ -23,6 +23,20 @@ export default class SessionThing {
     this.serial = 0;
 
     this.grokCtx = this.track.manager.grokCtx;
+
+    // Finish filling out our shape before calling out.
+    this.model = null;
+
+    // Only now, at the end of initialization, can we make our thing.
+    this.model = this.binding.makeModel(this, persisted);
+  }
+
+  makeLabel() {
+    return this.binding.makeLabelForModel(this, this.model);
+  }
+
+  makeWidget() {
+    return this.binding.makeWidgetForModel(this, this.model);
   }
 
   /**
@@ -138,6 +152,10 @@ export default class SessionThing {
   }
 
   removeSelf() {
+    if (this.model) {
+      this.model.destroy();
+      this.model = null;
+    }
     this.track.removeThing(this);
   }
 }

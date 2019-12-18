@@ -359,6 +359,18 @@ body {
   font-size: 14px;
 }
 
+.gutter {
+    background-color: #eee;
+
+    background-repeat: no-repeat;
+    background-position: 50%;
+}
+
+.gutter.gutter-vertical {
+    background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAFAQMAAABo7865AAAABlBMVEVHcEzMzMzyAv2sAAAAAXRSTlMAQObYZgAAABBJREFUeF5jOAMEEAIEEFwAn3kMwcB6I2AAAAAASUVORK5CYII=');
+}
+
+
 /* Context menu.  Looks like:
  *
  * /----------------------\
@@ -607,7 +619,7 @@ body {
 }
 
 /* Hovering over symbol names */
-span[data-symbols]:hover, code[data-symbols]:hover {
+span[data-symbols]:hover, code[data-symbols]:hover, g[data-symbols]:hover {
   cursor: pointer;
 }
 span[data-symbols].hovered, code[data-symbols].hovered {
@@ -615,6 +627,13 @@ span[data-symbols].hovered, code[data-symbols].hovered {
 }
 span[data-symbols].sticky-highlight, code[data-symbols].sticky-highlight {
   background-color: orange;
+}
+
+g[data-symbols].hovered {
+  outline: 4px solid yellow;
+}
+g[data-symbols].sticky-highlight {
+  outline: 4px solid orange;
 }
 
 /* Help screen */
