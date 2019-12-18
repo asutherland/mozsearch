@@ -7,3 +7,10 @@
 .sessionTabbedContainer div {
   height: 100%;
 }
+
+.sessionTabbedContainer_spawnButton {
+  /* we get absolutely positioned in the lower right of the tabbed display */
+  position: absolute;
+  right: 1em;
+  bottom: 1em;
+}

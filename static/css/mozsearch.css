@@ -236,6 +236,8 @@ body {
 #fixed-header {
   flex-shrink: 0;
   display: inline-flex;
+  /* let the add tab button be "position: absolute" inside this box */
+  position: relative;
 }
 
 #scrolling {
@@ -351,6 +353,10 @@ body {
 }
 .file pre {
     margin: 0;
+}
+
+.panel {
+  display: none !important;
 }
 
 .rendered-markdown {

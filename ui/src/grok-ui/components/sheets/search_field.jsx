@@ -54,6 +54,7 @@ export class SearchFieldModel {
 }
 
 export let SearchFieldBinding = {
+  spawnable: 'Search',
   makeModel(/*sessionThing, persisted */) {
     // The model needs to exist and have a destroy method right now.  But it's
     // not clear we gain anything by actually having a model.  If this idiom
