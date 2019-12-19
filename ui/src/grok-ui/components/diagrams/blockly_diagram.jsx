@@ -1,6 +1,10 @@
 import React from 'react';
 
+import { Label, Menu, Tab, Dropdown } from 'semantic-ui-react';
+
 import DirtyingComponent from '../dirtying_component.js';
+
+import './blockly_diagram.css';
 
 /**
  * This is largely just a duplicate of the ClassDiagram widget, but this
@@ -33,6 +37,7 @@ export default class BlocklyDiagram extends DirtyingComponent {
         format: "svg",
       }).then((rawSvg) => {
         const svgStr = fixupSVG(rawSvg);
+        model.svg = svgStr;
 
         const container = this.diagramRef.current;
         // Graph rendering is an async process, it's possible the widget ends up
@@ -51,6 +56,30 @@ export default class BlocklyDiagram extends DirtyingComponent {
   }
 
   render() {
-    return <div ref={ this.diagramRef }></div>;
+    const { model } = this.props;
+    const doExport = async () => {
+      try {
+        const markdownText = await model.exportMarkdownBlock();
+        await navigator.clipboard.writeText(markdownText);
+      } catch (ex) {
+        console.warn('problem exporting to the clipboard', ex);
+      }
+      console.log('exported diagram to the clipboard');
+    };
+
+    return (
+      <div className="blocklyDiagram">
+        <div ref={ this.diagramRef }></div>
+        <div className="blocklyDiagram_buttonArea">
+          <Dropdown className="icon"
+            icon="setting"
+            >
+            <Dropdown.Menu>
+              <Dropdown.Item onClick={ doExport }>Export to clipboard</Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown>
+        </div>
+      </div>
+    );
   }
 }

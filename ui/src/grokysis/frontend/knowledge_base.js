@@ -574,6 +574,9 @@ export default class KnowledgeBase {
     const symbols = await this._lookupSymbolsFromGraphDef(gdef);
 
     switch (gdef.mode) {
+      case "blockly-v1":
+        return gdef.svg;
+
       default:
       case "paths-between": {
         const doodler = new PathsBetweenDoodler();

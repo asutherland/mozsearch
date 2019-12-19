@@ -1,0 +1,12 @@
+.blocklyDiagram {
+  /* need to create a stacking context for an absolutely positioned button */
+  position: relative;
+  height: 100%;
+  width: 100%;
+}
+
+.blocklyDiagram_buttonArea {
+  position: absolute;
+  right: 1em;
+  bottom: 1em;
+}

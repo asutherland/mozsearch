@@ -77,11 +77,13 @@ export class BlocklyDiagramEditorModel {
     this.sessionThing = sessionThing;
     this.diagram = diagram;
     this.xml = xml;
+    this.svg = null;
 
     this.generator = null;
   }
 
   async workspaceUpdated(workspace, xml) {
+    this.xml = xml;
     this.sessionThing.updatePersistedState({
       xml,
       serialized: null
@@ -96,6 +98,19 @@ export class BlocklyDiagramEditorModel {
 
     this.generator = generator;
     this.diagram.markDirty();
+  }
+
+  exportMarkdownBlock() {
+    // We currently just serialize the source definition (XML) and the SVG
+    // byproduct.  There isn't really a benefit to saving off the HierNode rep
+    // at this time.
+    const data = {
+      mode: "blockly-v1",
+      xml: this.xml,
+      svg: this.svg
+    };
+    return "```searchfox-graph-v1\n" + JSON.stringify(data, null, 2) +
+             "\n```\n";
   }
 
   destroy() {
