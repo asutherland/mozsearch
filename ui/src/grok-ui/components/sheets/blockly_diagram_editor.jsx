@@ -2,9 +2,13 @@ import React from 'react';
 
 import Split from 'react-split';
 
-import BlocklyDiagram from '../diagrams/class_diagram.jsx';
+import BlocklyDiagram from '../diagrams/blockly_diagram.jsx';
 
-import ReactBlocklyComponent from 'react-blockly';
+import BlocklyEditor from '../blockly/editor.jsx';
+
+import { HierNodeGenerator } from '../../blockly/hiernode_generator.js';
+
+import './blockly_diagram_editor.css';
 
 /**
  * The blockly digram editor is currently analogous to the HierNode tree in the
@@ -24,51 +28,79 @@ export class BlocklyDiagramEditorSheet extends React.Component {
   }
 
   render() {
+    const model = this.props.model;
+
+    const onChange = (workspace, xml) => {
+      model.workspaceUpdated(workspace, xml);
+    };
+
     return (
-      <Split>
-        <ReactBlocklyComponent />
-        <BlocklyDiagram {...this.props} />
+      <Split className="blocklyDiagramEditorSheet">
+        <BlocklyEditor
+          initialXml={ model.xml }
+          onChange={ onChange }
+          />
+        <BlocklyDiagram
+          sessionThing={ model.sessionThing }
+          diagram={ model.diagram }
+          model={ model }
+          />
       </Split>
     );
   }
 }
 
 export class BlocklyDiagramEditorModel {
-  constructor({ sessionThing, diagram }) {
+  constructor({ sessionThing, xml, diagram }) {
     this.sessionThing = sessionThing;
     this.diagram = diagram;
+    this.xml = xml;
 
-    this.sessionThing.handleSlotMessage(
-      'addEdge', this.onAddEdge.bind(this));
+    this.generator = null;
+  }
+
+  async workspaceUpdated(workspace, xml) {
+    this.sessionThing.updatePersistedState({
+      xml,
+      serialized: null
+    });
+    // We can just update the diagram directly, the widget binds directly to
+    // the diagram.
+    this.generator = new HierNodeGenerator({
+      kb: this.sessionThing.grokCtx.kb,
+    });
+    await this.generator.generate({ workspace });
+    this.diagram.markDirty();
   }
 
   destroy() {
-    this.sessionThing.stopHandlingSlotMessage('addEdge');
   }
 
   onAddEdge({ from, to }) {
-    this.diagram.ensureEdge(from, to);
   }
 }
 
 export let BlocklyDiagramEditorBinding = {
-  slotName: 'blockly-diagram',
   spawnable: 'Blockly Diagram',
   makeModel(sessionThing, persisted) {
     const diagram =
       sessionThing.grokCtx.kb.restoreDiagram(persisted.serialized || null);
-    return new BlocklyDiagramEditorModel({ sessionThing, diagram });
+    return new BlocklyDiagramEditorModel({
+      sessionThing,
+      diagram,
+      xml: persisted.xml || null
+    });
   },
 
   makeLabelForModel(sessionThing, model) {
-    return model.diagram.name;
+    return 'Blockly ' + model.diagram.name;
   },
 
   makeWidgetForModel(sessionThing, model) {
     return (
       <BlocklyDiagramEditorSheet
         sessionThing={ model.sessionThing }
-        diagram={ model.diagram }
+        model={ model }
         />
     );
   }

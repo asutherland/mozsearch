@@ -1,0 +1,14 @@
+/**
+ * The editor should grow to fit its container and create a new stacking
+ * context.
+ */
+.blocklyEditor {
+  height: 100%;
+  width: 100%;
+  position: relative;
+}
+
+.blocklyEditor_inner {
+  height: 100%;
+  width: 100%;
+}

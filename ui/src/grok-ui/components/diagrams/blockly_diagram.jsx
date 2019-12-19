@@ -3,7 +3,12 @@ import React from 'react';
 import DirtyingComponent from '../dirtying_component.js';
 
 /**
- *
+ * This is largely just a duplicate of the ClassDiagram widget, but this
+ * will have some additional special-casing:
+ * - We want to display an "edit" icon on the diagram when the diagram isn't
+ *   already directly hooked up to a blockly editor.  In that case, we should
+ *   trigger the opening of a blockly diagram tab with the current source XML
+ *   of the diagram.
  */
 export default class BlocklyDiagram extends DirtyingComponent {
   constructor(props) {
@@ -14,10 +19,14 @@ export default class BlocklyDiagram extends DirtyingComponent {
 
   componentDidMount() {
     super.componentDidMount();
-    if (this.diagramRef.current) {
-      const diagram = this.props.diagram;
+    // don't render if there's no DOM node to render into or the generator
+    // hasn't yet produced a HierNode representation for us.
+    // XXX we need a path for the pre-rendered diagram case.
+    if (this.diagramRef.current && this.props.model.generator) {
+      const { diagram, model } = this.props;
       const grokCtx = diagram.grokCtx;
-      const { dot, fixupSVG } = diagram.lowerToGraphviz();
+      // We diverge from ClassDiagram here.
+      const { dot, fixupSVG } = diagram.renderToSVG(model.generator);
       //console.log('rendering DOT:\n' + dot);
       grokCtx.vizJs.renderString(dot, {
         engine: "dot",

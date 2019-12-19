@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "binary-search-bounds": "github:bvaughn/binary-search-bounds#971e0ecbabcb1e9e657a68bf7cd937598117b688",
+    "blockly": "^3.20191014.4",
     "d3-array": "^1.2.4",
     "d3-axis": "^1.0.12",
     "d3-scale": "^2.2.2",
@@ -9,7 +10,6 @@
     "hast-util-to-dom": "^2.0.2",
     "idb": "^2.1.3",
     "react": "^16.9.0",
-    "react-blockly": "^4.1.0",
     "react-dom": "^16.9.0",
     "react-flame-graph": "^1.3.0",
     "react-reflex": "^2.2.9",

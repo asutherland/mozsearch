@@ -79,6 +79,8 @@ function makeGrokContext() {
       sheetBindings: {
         searchField: SearchFieldBinding,
         diagram: DiagramSheetBinding,
+        blocklyDiagram: BlocklyDiagramEditorBinding,
+        
         // sentinel sourceView thing.
         sourceView: {
           makeModel() {

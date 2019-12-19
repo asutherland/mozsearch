@@ -13,7 +13,7 @@ function bitCount (n) {
 /**
  * Helper to cluster dot snippets inside subgraphs.
  */
-class HierNode {
+export class HierNode {
   constructor(parent, name, depth) {
     this.name = name;
     this.depth = depth;
@@ -92,37 +92,8 @@ class HierNode {
       return this.name;
     }
   }
-}
 
-class HierBuilder {
-  constructor() {
-    this.root = new HierNode(null, '', 0);
-    this.symsToHierNodes = new Map();
-
-    this.idCounter = 0;
-    this.idToNode = new Map();
-  }
-
-  /**
-   * Create a HierNode wrapping the provided symbol, returning the provided
-   * hierNode.
-   */
-  addNode(sym) {
-    const pathParts = sym.fullyQualifiedParts;
-
-    let cur = this.root;
-    if (pathParts) {
-      for (const part of pathParts) {
-        cur = cur.getOrCreateKid(part);
-      }
-    }
-
-    cur.updateSym(sym);
-
-    this.symsToHierNodes.set(sym, cur);
-  }
-
-  _findCommonAncestor(fromNode, toNode) {
+  static findCommonAncestor(fromNode, toNode) {
     // special-case self-edges to go in their parent.
     if (fromNode === toNode) {
       // only walk up if we're not somehow at the root.
@@ -154,6 +125,38 @@ class HierBuilder {
 
     return curFromNode;
   }
+}
+
+// TODO: Extract out the class-diagram specific logic so the blockly
+// HierNodeGenerator (which subclasses this now), can use the node action logic
+// without running into the logic that assumes everything is a symbol.
+export class HierBuilder {
+  constructor() {
+    this.root = new HierNode(null, '', 0);
+    this.symsToHierNodes = new Map();
+
+    this.idCounter = 0;
+    this.nodeIdToNode = new Map();
+  }
+
+  /**
+   * Create a HierNode wrapping the provided symbol, returning the provided
+   * hierNode.
+   */
+  addNode(sym) {
+    const pathParts = sym.fullyQualifiedParts;
+
+    let cur = this.root;
+    if (pathParts) {
+      for (const part of pathParts) {
+        cur = cur.getOrCreateKid(part);
+      }
+    }
+
+    cur.updateSym(sym);
+
+    this.symsToHierNodes.set(sym, cur);
+  }
 
   /**
    * Create an edge between two symbols.
@@ -162,7 +165,7 @@ class HierBuilder {
     const fromNode = this.symsToHierNodes.get(fromSym);
     const toNode = this.symsToHierNodes.get(toSym);
 
-    const ancestorNode = this._findCommonAncestor(fromNode, toNode);
+    const ancestorNode = HierNode.findCommonAncestor(fromNode, toNode);
 
     ancestorNode.edges.push({ from: fromNode, to: toNode });
     // Make sure the containing node and all its parents have accurate counts
@@ -244,7 +247,7 @@ class HierBuilder {
       node.edgeInId = node.edgeOutId = node.id;
     }
 
-    this.idToNode.set(node.id, node);
+    this.nodeIdToNode.set(node.id, node);
 
     for (const kid of node.kids.values()) {
       this._determineNodeAction(kid, beClass, beInTable);
@@ -708,12 +711,16 @@ export default class ClassDiagram extends EE {
     // ## Determine what to do at each level of the hierarchy.
     builder.determineNodeActions();
 
+    return this.renderToSVG(builder);
+  }
+
+  renderToSVG(builder) {
     // ## And now the actual dot source!
     return {
       dot: builder.renderToDot(),
       fixupSVG: (svgStr) => {
         return svgStr.replace(/>\n<title>([^<]+)<\/title>/g, (match, nodeId) => {
-          const node = builder.idToNode.get(nodeId);
+          const node = builder.nodeIdToNode.get(nodeId);
           if (!node || !node.sym) {
             // Just eat the title if we can't find the node.
             return '>';

@@ -1,0 +1,4 @@
+.blocklyDiagramEditorSheet {
+  display: flex;
+  flex-direction: row;
+}
