@@ -50,6 +50,10 @@ export default class BlocklyEditor extends React.Component {
     }
   }
 
+  updateSize() {
+    Blockly.svgResize(this.primaryWorkspace);
+  }
+
   get workspace() {
     return this.primaryWorkspace;
   }

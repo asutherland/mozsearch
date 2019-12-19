@@ -19,6 +19,8 @@ export class HierNodeGenerator extends HierBuilder {
 
     this.idToSym = null;
     this.symToNode = null;
+
+    this.varMap = null;
   }
 
   async generate({ workspace }) {
@@ -27,20 +29,20 @@ export class HierNodeGenerator extends HierBuilder {
     // -- Resolve variables to symbols
     // We only want variables that are actually used in the diagram.  It's
     // possible for there to be leftover cruft.
-    const blVariables = Blockly.Variables.allUsedVarModels(workspace.getVariableMap());
+    const blVariables = Blockly.Variables.allUsedVarModels(workspace);
+    this.varMap = workspace.getVariableMap();
     const idToSym = this.idToSym = new Map();
     const badIdentifiers = [];
     const idPromises = [];
 
     for (const blVar of blVariables) {
-      idPromises.push(kb.findSymbolsGivenId(blVar.name)).then((symSet) => {
-        const firstSym = Array.from(symSet)[0];
-        // This could absolutely be undefined, but we want an entry.
+      idPromises.push(kb.findSymbolsGivenId(blVar.name).then((symSet) => {
+        const firstSym = symSet && Array.from(symSet)[0];
         idToSym.set(blVar.name, firstSym);
         if (!firstSym) {
           badIdentifiers.push(blVar.name);
         }
-      });
+      }));
     }
 
     // Wait for all of the promises to resolve, which means all of their
@@ -58,7 +60,7 @@ export class HierNodeGenerator extends HierBuilder {
     const blocks = workspace.getTopBlocks(true);
     const deferredBlocks = [];
     for (const block of blocks) {
-      this._processBlock(rootNode, block, idToSym, symToNode, deferredBlocks);
+      this._processBlock(rootNode, block, deferredBlocks);
     }
 
     for (const [block, parentNode] of deferredBlocks) {
@@ -84,7 +86,9 @@ export class HierNodeGenerator extends HierBuilder {
         break;
     }
     node.id = prefix + (this.idCounter++);
+    node.action = action;
     this.nodeIdToNode.set(node.id, node);
+    return node;
   }
 
   _processBlock(parentNode, block, deferredBlocks) {
@@ -97,11 +101,11 @@ export class HierNodeGenerator extends HierBuilder {
       }
 
       case 'node_class': {
-        const className = block.getFieldValue('NAME');
+        const classVar = this.varMap.getVariableById(block.getFieldValue('NAME'));
+        const className = classVar.name;
         const classSym = this.idToSym.get(className);
         if (!classSym) {
           console.warn('failed to resolve id', className);
-          return;
         }
         // We start out as a node and any methods added to us cause us to
         // become a table.
@@ -109,11 +113,15 @@ export class HierNodeGenerator extends HierBuilder {
         // HierBuilder to allow us to use its node action logic for table
         // purposes.  Right now there's a little bit too much Symbol
         // understanding built into Hierbuilder for us to use it.
-        node = this._makeNode(parentNode, classSym.simpleName, 'node');
+        node = this._makeNode(parentNode, className, 'node');
+        node.edgeInId = node.edgeOutId = node.id;
         if (this.symToNode.has(className)) {
           console.warn('clobbering already existing graph node for class', className);
         }
-        this.symToNode.set(className, node);
+        if (classSym) {
+          node.sym = classSym;
+          this.symToNode.set(classSym, node);
+        }
         break;
       }
 
@@ -140,15 +148,23 @@ export class HierNodeGenerator extends HierBuilder {
   _processDeferredBlock(rootNode, block, parentNode) {
     switch (block.type) {
       case 'edge_call': {
-        const callName = block.getFieldValue('CALLS_WHAT');
+        const callVar = this.varMap.getVariableById(block.getFieldValue('CALLS_WHAT'));
+        const callName = callVar.name;
         const callSym = this.idToSym.get(callName);
         if (!callSym) {
-          console.warn('failed to resulve call id', callName);
+          console.warn('failed to resolve call id', callName);
           return;
         }
         const otherNode = this.symToNode.get(callSym);
+        if (!otherNode) {
+          console.warn('unable to find call target', callSym);
+        }
         const ancestorNode = HierNode.findCommonAncestor(parentNode, otherNode);
-        ancestorNode.edges.push({ from: parentNode, to: otherNode });
+        if (ancestorNode) {
+          ancestorNode.edges.push({ from: parentNode, to: otherNode });
+        } else {
+          console.warn('skipping edge due to lack of ancestor', parentNode, otherNode);
+        }
         break;
       }
 

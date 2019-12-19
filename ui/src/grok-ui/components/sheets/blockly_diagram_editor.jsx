@@ -10,6 +10,12 @@ import { HierNodeGenerator } from '../../blockly/hiernode_generator.js';
 
 import './blockly_diagram_editor.css';
 
+const Block = (p) => {
+  const { children, ...props } = p;
+  props.is = "blockly";
+  return React.createElement("block", props, children);
+};
+
 /**
  * The blockly digram editor is currently analogous to the HierNode tree in the
  * class diagram pipeline of nodes/edges => hierbuilder => HierNode tree =>
@@ -25,6 +31,8 @@ import './blockly_diagram_editor.css';
 export class BlocklyDiagramEditorSheet extends React.Component {
   constructor(props) {
     super(props);
+
+    this.editorRef = React.createRef();
   }
 
   render() {
@@ -34,12 +42,26 @@ export class BlocklyDiagramEditorSheet extends React.Component {
       model.workspaceUpdated(workspace, xml);
     };
 
+    const updateBlocklySize = () => {
+      if (this.editorRef.current) {
+        this.editorRef.current.updateSize();
+      }
+    };
+
     return (
-      <Split className="blocklyDiagramEditorSheet">
+      <Split className="blocklyDiagramEditorSheet"
+        onDragEnd={ updateBlocklySize }
+        >
         <BlocklyEditor
+          ref={ this.editorRef }
           initialXml={ model.xml }
           onChange={ onChange }
-          />
+          >
+          <Block type="cluster_process" />
+          <Block type="cluster_thread" />
+          <Block type="node_class" />
+          <Block type="edge_call" />
+        </BlocklyEditor>
         <BlocklyDiagram
           sessionThing={ model.sessionThing }
           diagram={ model.diagram }
@@ -66,10 +88,13 @@ export class BlocklyDiagramEditorModel {
     });
     // We can just update the diagram directly, the widget binds directly to
     // the diagram.
-    this.generator = new HierNodeGenerator({
+    const generator = new HierNodeGenerator({
       kb: this.sessionThing.grokCtx.kb,
     });
-    await this.generator.generate({ workspace });
+    await generator.generate({ workspace });
+    console.log('just generated', generator);
+
+    this.generator = generator;
     this.diagram.markDirty();
   }
 

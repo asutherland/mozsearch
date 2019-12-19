@@ -268,7 +268,7 @@ export default class SymbolInfo extends EE {
 
     this.fullName = prettyName;
     this.namespace = namespace;
-    this.simpleName = className + methodName;
+    this.simpleName = className + (methodName || '');
     this.className = className;
     this.localName = methodName;
 

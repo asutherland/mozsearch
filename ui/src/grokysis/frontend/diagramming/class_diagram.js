@@ -94,6 +94,9 @@ export class HierNode {
   }
 
   static findCommonAncestor(fromNode, toNode) {
+    if (!fromNode || !toNode) {
+      return null;
+    }
     // special-case self-edges to go in their parent.
     if (fromNode === toNode) {
       // only walk up if we're not somehow at the root.
