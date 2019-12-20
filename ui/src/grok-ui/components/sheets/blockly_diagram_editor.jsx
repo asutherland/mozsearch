@@ -35,6 +35,23 @@ export class BlocklyDiagramEditorSheet extends React.Component {
     this.editorRef = React.createRef();
   }
 
+  componentDidMount() {
+    // The header splitter generates this event when it gets resized.
+    this.props.sessionThing.handleBroadcastMessage('window', 'resize', () => {
+      this.updateBlocklySize();
+    });
+  }
+
+  componentWillUnmount() {
+    this.props.sessionThing.stopHandlingBroadcastMessage('window', 'resize');
+  }
+
+  updateBlocklySize() {
+    if (this.editorRef.current) {
+      this.editorRef.current.updateSize();
+    }
+  }
+
   render() {
     const model = this.props.model;
 
@@ -42,15 +59,9 @@ export class BlocklyDiagramEditorSheet extends React.Component {
       model.workspaceUpdated(workspace, xml);
     };
 
-    const updateBlocklySize = () => {
-      if (this.editorRef.current) {
-        this.editorRef.current.updateSize();
-      }
-    };
-
     return (
       <Split className="blocklyDiagramEditorSheet"
-        onDragEnd={ updateBlocklySize }
+        onDragEnd={ () => { this.updateBlocklySize(); } }
         >
         <BlocklyEditor
           ref={ this.editorRef }

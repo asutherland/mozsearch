@@ -161,7 +161,7 @@ export class HierNodeGenerator extends HierBuilder {
         }
         const ancestorNode = HierNode.findCommonAncestor(parentNode, otherNode);
         if (ancestorNode) {
-          ancestorNode.edges.push({ from: parentNode, to: otherNode });
+          ancestorNode.edges.push({ from: parentNode, to: otherNode, kind: 'call' });
         } else {
           console.warn('skipping edge due to lack of ancestor', parentNode, otherNode);
         }

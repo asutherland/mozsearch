@@ -19,6 +19,8 @@ export class HierNode {
     this.depth = depth;
     this.parent = parent;
 
+    // One of process/thread/class/method/etc.
+    this.nodeKind = null;
     this.sym = null;
     this.altSyms = null;
     /**
@@ -299,7 +301,9 @@ export class HierBuilder {
     }
 
     // node.edges may be null if shunted to the parent in the 'record' case.
-    if (node.edges) {
+    // Also skip if there are no edges to avoid filling the output up with
+    // a million unused newlines.
+    if (node.edges && node.edges.length) {
       s += '\n';
       for (const { from, to } of node.edges) {
         // HACK: Don't expose edges to the root node.
@@ -717,6 +721,12 @@ export default class ClassDiagram extends EE {
     return this.renderToSVG(builder);
   }
 
+  /**
+   * Render the diagram to SVG, performing fixups so that the <title> tags that
+   * are just our auto-generated node identifiers are replaced with semantic
+   * attributes that allow us to map nodes in the graph to underlying searchfox
+   * symbols.
+   */
   renderToSVG(builder) {
     // ## And now the actual dot source!
     return {
@@ -733,5 +743,178 @@ export default class ClassDiagram extends EE {
         });
       }
     };
+  }
+
+  /**
+   * Create a hierarchy of ul/li tags that attempts to express what the diagram
+   * conveys.  This is intended to be presented to screen readers instead of the
+   * graphviz graph.
+   *
+   * It is likely we'll also want to be able to parse this representation and/or
+   * its Markdown equivalent as an alternate authorship interface because the
+   * accessible blockly effort/experiment has been archived at
+   * https://github.com/google/blockly-experimental.  The blockly UI is very
+   * mouse-centric and, consistent with the archival of that project, it's not
+   * clear that the UI is superior to a more directly presented tree structure.
+   *
+   * We could provide a bare text parsing implementation as well as a
+   * tree-editing UI that might resemble a mail program's filter editing UI.
+   * It would consist of a tree widget where each row is a combination of
+   * multiple-choice combo-boxes, plus text fields for symbol names.  This is
+   * basically what would happen if you flattened the blockly toolbox into the
+   * blocks so that the first input of every block was a choice of what block it
+   * was and forced all blocks to be in the hierarchy of the root block.  (Which
+   * is a thing that can be done in blockly, but limits the benefit of using the
+   * UI over using what I'm proposing here.)
+   */
+  renderToNestedList(builder, doc) {
+    // ## Derive Global Info
+    // Keys are the from/to edge, values are Arrays of the full
+    // { from, to, kind } that we found in the list of edges.
+    //
+    // The edges are currently stashed at the first common ancestor of the nodes
+    // in question (which may get kicked upward when table graphviz labels are
+    // in use) for the benefit of the action-determining heuristics.
+    const allEdgesFrom = new Map(), allEdgesTo = new Map();
+    // Helper to walk all nodes in order to compute global info that we want
+    // ahead of our output traversal.
+    function traverseForGlobalInfo(node) {
+      if (node.edges) {
+        for (const edge of node.edges) {
+          let fromEdges = allEdgesFrom.get(edge.from);
+          if (!fromEdges) {
+            fromEdges = [];
+            allEdgesFrom.set(edge.from, fromEdges);
+          }
+          fromEdges.push(edge);
+
+          let toEdges = allEdgesTo.get(edge.to);
+          if (!toEdges) {
+            toEdges = [];
+            allEdgesTo.set(edge.to, toEdges);
+          }
+          toEdges.push(edge);
+        }
+      }
+
+      for (const kid of node.kids.values()) {
+        traverseForGlobalInfo(kid);
+      }
+    }
+    traverseForGlobalInfo(builder.root);
+
+    // ## Build list hierarchy
+    function e(tag, attrs, children) {
+      const elem = doc.createElement(tag);
+
+      if (attrs) {
+        for (const [name, value] of Object.entries(attrs)) {
+          elem.setAttribute(name, value);
+        }
+      }
+
+      if (children) {
+        if (!Array.isArray(children)) {
+          children = [children];
+        }
+
+        for (const kid of children) {
+          // Skip falsey children.
+          if (!kid) {
+            continue;
+          }
+          if (typeof(kid) === 'string') {
+            elem.appendChild(doc.createTextNode(kid));
+          }
+          else {
+            elem.appendChild(kid);
+          }
+        }
+      }
+
+      return elem;
+    }
+
+    function nodeSpan(node) {
+      let nodeProps = null;
+      if (node.sym) {
+        nodeProps = { 'data-symbols': node.sym.rawName };
+      }
+
+      const eNode = e(
+        'span',
+        nodeProps,
+        node.computeLabel());
+
+      // If there's a kind associated with the node include that separate from
+      // the node's explicit name/label.
+      if (node.nodeKind) {
+        return e(
+          'span',
+          null,
+          // XXX for now just pass the kind through directly, but we should
+          // likely be smarter here, including having the kind for symbol nodes
+          // end up using the actual language term (class/union/etc.) rather
+          // than requiring the source of the graph to tell us what they are.
+          [`${node.nodeKind} `, eNode]);
+      }
+      return eNode;
+    }
+
+    // String mappings per edge direction for each kind on how to label things
+    // in the tree.
+    const EDGE_KIND_FROM = {
+      call: 'Calls',
+    };
+    const EDGE_KIND_TO = {
+      call: 'Called by'
+    };
+
+    function renderNodeInto(node, eParent) {
+      const eSym = nodeSpan(node);
+      const eNode = e(
+        'li',
+        null,
+        [eSym]);
+
+      if (node.kids.size || allEdgesFrom.has(node) || allEdgesTo.has(node)) {
+        const eSub = e('ul', null);
+        if (node.kids) {
+          for (const kid of node.kids.values()) {
+            renderNodeInto(kid, eSub);
+          }
+        }
+
+        let edgesFrom = allEdgesFrom.get(node);
+        if (edgesFrom) {
+          for (const edge of edgesFrom) {
+            const eEdge = e(
+              'li',
+              null,
+              [`${EDGE_KIND_FROM[edge.kind]} `, nodeSpan(edge.to)]);
+            eSub.appendChild(eEdge);
+          }
+        }
+
+        let edgesTo = allEdgesTo.get(node);
+        if (edgesTo) {
+          for (const edge of edgesTo) {
+            const eEdge = e(
+              'li',
+              null,
+              [`${EDGE_KIND_TO[edge.kind]} `, nodeSpan(edge.from)]);
+            eSub.appendChild(eEdge);
+          }
+        }
+
+        eNode.appendChild(eSub);
+      }
+
+      eParent.appendChild(eNode);
+    }
+
+    const eRoot = e('ul');
+    renderNodeInto(builder.root, eRoot);
+    return eRoot;
   }
 }

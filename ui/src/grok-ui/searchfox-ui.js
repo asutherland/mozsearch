@@ -80,7 +80,7 @@ function makeGrokContext() {
         searchField: SearchFieldBinding,
         diagram: DiagramSheetBinding,
         blocklyDiagram: BlocklyDiagramEditorBinding,
-        
+
         // sentinel sourceView thing.
         sourceView: {
           makeModel() {
@@ -340,7 +340,10 @@ function replaceSearchboxWithOverwhelmingComplexity() {
     {
       direction: 'vertical',
       minSize: [180, 200],
-      sizes: [10, 90],
+      sizes: [30, 70],
+      onDragEnd: () => {
+        gSourceSessionThing.broadcastMessage('window', 'resize', {});
+      }
     });
 }
 replaceSearchboxWithOverwhelmingComplexity();

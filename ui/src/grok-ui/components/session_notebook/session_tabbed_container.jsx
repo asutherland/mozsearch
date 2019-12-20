@@ -76,7 +76,7 @@ export default class SessionTabbedContainer extends DirtyingComponent {
     return (
       <React.Fragment>
         <div className="sessionTabbedContainer">
-          <Tab
+          <Tab className="sessionTabbedContainer_tabContainer"
             panes={panes}
             menu={{ attached: true, vertical: true, tabular: true }}
             menuPosition="right"
