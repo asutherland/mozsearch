@@ -1,5 +1,5 @@
+import Blockly from 'blockly/core';
 import React from 'react';
-
 import Split from 'react-split';
 
 import BlocklyDiagram from '../diagrams/blockly_diagram.jsx';
@@ -14,6 +14,18 @@ const Block = (p) => {
   const { children, ...props } = p;
   props.is = "blockly";
   return React.createElement("block", props, children);
+};
+
+const Category = (p) => {
+  const { children, ...props } = p;
+  props.is = "blockly";
+  return React.createElement("category", props, children);
+};
+
+const Button = (p) => {
+  const { children, ...props } = p;
+  props.is = "blockly";
+  return React.createElement("button", props, children);
 };
 
 /**
@@ -40,6 +52,8 @@ export class BlocklyDiagramEditorSheet extends React.Component {
     this.props.sessionThing.handleBroadcastMessage('window', 'resize', () => {
       this.updateBlocklySize();
     });
+
+
   }
 
   componentWillUnmount() {
@@ -59,6 +73,17 @@ export class BlocklyDiagramEditorSheet extends React.Component {
       model.workspaceUpdated(workspace, xml);
     };
 
+    const buttonCallbacks = {
+      'new_instance_group': (button) => {
+        const workspace = button.getTargetWorkspace();
+        Blockly.Variables.createVariable(workspace, null, 'instance-group');
+      },
+      'new_class_variable': (button) => {
+        const workspace = button.getTargetWorkspace();
+        Blockly.Variables.createVariable(workspace, null, 'identifier');
+      }
+    }
+
     return (
       <Split className="blocklyDiagramEditorSheet"
         onDragEnd={ () => { this.updateBlocklySize(); } }
@@ -67,11 +92,31 @@ export class BlocklyDiagramEditorSheet extends React.Component {
           ref={ this.editorRef }
           initialXml={ model.xml }
           onChange={ onChange }
+          buttonCallbacks={ buttonCallbacks }
           >
-          <Block type="cluster_process" />
-          <Block type="cluster_thread" />
-          <Block type="node_class" />
-          <Block type="edge_call" />
+          <Category name="Grouping">
+            <Block type="cluster_process" />
+            <Block type="cluster_thread" />
+            <Block type="cluster_client" />
+          </Category>
+          <Category name="Classes">
+            <Button
+              text="New Instance Group"
+              callbackKey="new_instance_group"
+              />
+            <Button
+              text="New Class / Method Reference"
+              callbackKey="new_class_variable"
+              />
+            <Block type="node_class" />
+            <Block type="node_instance" />
+            <Block type="edge_call" />
+            <Block type="edge_instance_call" />
+          </Category>
+          <Category name="Settings">
+            <Block type="diagram_settings" />
+            <Block type="setting_instance_group" />
+          </Category>
         </BlocklyEditor>
         <BlocklyDiagram
           sessionThing={ model.sessionThing }

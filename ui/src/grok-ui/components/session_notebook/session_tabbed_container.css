@@ -4,13 +4,27 @@
   overflow: hidden;
 }
 
-.sessionTabbedContainer div {
+/* Begin high qwalitee CSS
+ *
+ * The current expectation is that this tabbed UI has the tabs on the right and
+ * its vertical space is decided by a splitter.  If I was creating the tab
+ * stuff from scratch, I'd just use flexbox.  But the react semantic UI is using
+ * a grid here for some reason that I haven't looked into.  So we're just going
+ * to force the CSS that's part of the tab infrastructure to be 100%.
+ *
+ * It's on the contents of the tabs to handle things from there, preferably with
+ * flexbox.
+ */
+.sessionTabbedContainer_tabContainer,
+.sessionTabbedContainer_tabContainer > div,
+.sessionTabbedContainer_tabContainer > .ui.grid,
+.sessionTabbedContainer_tabContainer > .ui.grid > .wide.column {
   height: 100%;
 }
 
 /* This padding is not helpful in this case. There's probably a way to turn this
  * off that's smarter... */
-.sessionTabbedContainer_tabContainer .ui.grid .wide.column {
+.sessionTabbedContainer_tabContainer > .ui.grid > .wide.column {
   padding: none !important;
 }
 

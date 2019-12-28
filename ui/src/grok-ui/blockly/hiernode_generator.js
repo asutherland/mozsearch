@@ -17,16 +17,32 @@ export class HierNodeGenerator extends HierBuilder {
 
     this.kb = kb;
 
+    // Maps identifier strings to searchfox SymbolInfo instances.
     this.idToSym = null;
+    /**
+     * Maps "global" non-instanced symbols to their HierNode instances.
+     */
     this.symToNode = null;
 
+
+    // The workspace's variable map; this avoids passing it around.
     this.varMap = null;
+  }
+
+  /**
+   * Symbols/identifiers exist in either the "global" mapping or are tracked
+   * to be associated with (conceptual) instance groups.  This method handles
+   * the lookup dance.
+   */
+  _findSymInstanceNode(sym, instanceGroupName) {
+    // XXX finish implementing this.
+    return this.symToNode.get(sym);
   }
 
   async generate({ workspace }) {
     const kb = this.kb;
 
-    // -- Resolve variables to symbols
+    // ## Phase 0: Resolve variables to symbols
     // We only want variables that are actually used in the diagram.  It's
     // possible for there to be leftover cruft.
     const blVariables = Blockly.Variables.allUsedVarModels(workspace);
@@ -49,7 +65,13 @@ export class HierNodeGenerator extends HierBuilder {
     // side-effects to `varToSym` have happened already.
     await Promise.all(idPromises);
 
-    // -- Traverse the diagram, rendering to HierNode
+    // ## Phase 1 Traversal: Process Settings
+    const topBlocks = workspace.getTopBlocks(true);
+    for (const block of topBlocks) {
+      this._phase1_processBlock(block);
+    }
+
+    // ## Phase 2 Traversal: Render to HierNode
     const symToNode = this.symToNode = new Map();
     const rootNode = this.root;
     rootNode.action = 'flatten';
@@ -57,10 +79,9 @@ export class HierNodeGenerator extends HierBuilder {
 
     // Request that the blocks be ordered so that the user has some control over
     // the graph.
-    const blocks = workspace.getTopBlocks(true);
     const deferredBlocks = [];
-    for (const block of blocks) {
-      this._processBlock(rootNode, block, deferredBlocks);
+    for (const block of topBlocks) {
+      this._phase2_processBlock(rootNode, block, deferredBlocks);
     }
 
     for (const [block, parentNode] of deferredBlocks) {
@@ -91,12 +112,75 @@ export class HierNodeGenerator extends HierBuilder {
     return node;
   }
 
-  _processBlock(parentNode, block, deferredBlocks) {
+  _phase1_processSettingsBlock(block) {
+    switch (block.type) {
+        case 'setting_instance_group': {
+          break;
+        }
+        case 'diagram_settings': {
+          break;
+        }
+
+        default: {
+          throw new Error(`unknown setting block: ${block.type}`);
+        }
+    }
+
+    for (const childBlock of block.getChildren(true)) {
+      this._processBlock(childBlock);
+    }
+  }
+
+  _phase1_processBlock(block) {
+    switch (block.type) {
+      case 'setting_instance_group':
+      case 'diagram_settings': {
+        // When we see a settings block, we transfer control flow to
+        // _processSettingsBlock and it handles any recursion.  So we return
+        // rather than break.
+        this._phase1_processSettingsBlock(block);
+        return;
+      }
+
+      default: {
+        // keep walking.
+        break;
+      }
+    }
+
+    for (const childBlock of block.getChildren(true)) {
+      this._phase1_processBlock(childBlock);
+    }
+  }
+
+  _phase2_processBlock(parentNode, block, deferredBlocks) {
     let node;
     switch (block.type) {
-      case 'cluster_process':
+      case 'setting_instance_group':
+      case 'diagram_settings': {
+        // When we see a settings block, we transfer control flow to
+        // _processSettingsBlock and it handles any recursion.  So we return
+        // rather than break.
+        this._processSettingsBlock(block);
+        return;
+      }
+
+      case 'cluster_process': {
+        node = this._makeNode(parentNode, block.getFieldValue('NAME'), 'cluster');
+        break;
+      }
       case 'cluster_thread': {
         node = this._makeNode(parentNode, block.getFieldValue('NAME'), 'cluster');
+        break;
+      }
+      case 'cluster_client': {
+        const kindField = block.getField('CLIENT_KIND');
+        const kindInitialCaps = kindField.getText(); // the presentation string.
+        const clientName = block.getFieldValue('NAME');
+        // For now we fold the client kind into the name
+        const name = `${kindInitialCaps} ${clientName}`;
+        node = this._makeNode(parentNode, name, 'cluster');
+        node.nodeKind = kindInitialCaps.toLowerCase();
         break;
       }
 

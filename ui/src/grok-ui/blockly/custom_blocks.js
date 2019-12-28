@@ -16,6 +16,58 @@
 
 import Blockly from 'blockly/core';
 
+const diagram_settings_def = {
+  "type": "diagram_settings",
+  "message0": "Diagram Settings %1 %2",
+  "args0": [
+    {
+      "type": "input_dummy"
+    },
+    {
+      "type": "input_statement",
+      "name": "SETTINGS",
+      "check": "setting"
+    }
+  ],
+  "colour": 60,
+  "tooltip": "",
+  "helpUrl": ""
+};
+Blockly.Blocks['diagram_settings'] = {
+  init() {
+    this.jsonInit(diagram_settings_def);
+  }
+};
+
+const setting_instance_group_def = {
+  "type": "setting_instance_group",
+  "message0": "Instance Group %1 gets color %2",
+  "args0": [
+    {
+      "type": "field_variable",
+      "name": "INST_NAME",
+      "variable": null,
+      "variableTypes": ["instance-group"],
+      "defaultType": "instance-group"
+    },
+    {
+      "type": "field_colour",
+      "name": "INST_COLOR",
+      "colour": "#ccffff"
+    }
+  ],
+  "previousStatement": "setting",
+  "nextStatement": "setting",
+  "colour": 30,
+  "tooltip": "",
+  "helpUrl": ""
+};
+Blockly.Blocks['setting_instance_group'] = {
+  init() {
+    this.jsonInit(setting_instance_group_def);
+  }
+};
+
 const cluster_process_def = {
   "type": "cluster_process",
   "message0": "Process %1 %2 %3",
@@ -76,6 +128,58 @@ Blockly.Blocks['cluster_thread'] = {
   }
 };
 
+const cluster_client_def = {
+  "type": "cluster_client",
+  "message0": "%1 %2 %3 %4",
+  "args0": [
+    {
+      "type": "field_dropdown",
+      "name": "CLIENT_KIND",
+      "options": [
+        [
+          "Window",
+          "CLIENT_WINDOW"
+        ],
+        [
+          "DedicatedWorker",
+          "CLIENT_DEDICATED_WORKER"
+        ],
+        [
+          "ServiceWorker",
+          "CLIENT_SERVICE_WORKER"
+        ],
+        [
+          "SharedWorker",
+          "CLIENT_SHARED_WORKER"
+        ]
+      ]
+    },
+    {
+      "type": "field_input",
+      "name": "NAME",
+      "text": ""
+    },
+    {
+      "type": "input_dummy"
+    },
+    {
+      "type": "input_statement",
+      "name": "CHILDREN",
+      "check": "graphy"
+    }
+  ],
+  "previousStatement": "graphy",
+  "nextStatement": "graphy",
+  "colour": 330,
+  "tooltip": "",
+  "helpUrl": ""
+};
+Blockly.Blocks['cluster_client'] = {
+  init() {
+    this.jsonInit(cluster_client_def);
+  }
+};
+
 const node_class_def = {
   "type": "node_class",
   "message0": "Class %1 %2 %3",
@@ -83,7 +187,9 @@ const node_class_def = {
     {
       "type": "field_variable",
       "name": "NAME",
-      "variable": null
+      "variable": null,
+      "variableTypes": ["identifier"],
+      "defaultType": "identifier"
     },
     {
       "type": "input_dummy"
@@ -106,6 +212,51 @@ Blockly.Blocks['node_class'] = {
   }
 };
 
+const node_instance_def = {
+  "type": "node_instance",
+  "message0": "%1 Instance of %2 %3 %4 %5",
+  "args0": [
+    {
+      "type": "field_variable",
+      "name": "INST_NAME",
+      "variable": null,
+      "variableTypes": ["instance-group"],
+      "defaultType": "instance-group"
+    },
+    {
+      "type": "field_label_serializable",
+      "name": "INST_TYPE",
+      "text": "Class"
+    },
+    {
+      "type": "field_variable",
+      "name": "NAME",
+      "variable": null,
+      "variableTypes": ["identifier"],
+      "defaultType": "identifier"
+    },
+    {
+      "type": "input_dummy"
+    },
+    {
+      "type": "input_statement",
+      "name": "METHODS",
+      "check": "methorcall"
+    }
+  ],
+  "inputsInline": true,
+  "previousStatement": "graphy",
+  "nextStatement": "graphy",
+  "colour": 230,
+  "tooltip": "",
+  "helpUrl": ""
+};
+Blockly.Blocks['node_instance'] = {
+  init() {
+    this.jsonInit(node_instance_def);
+  }
+};
+
 const edge_call_def = {
   "type": "edge_call",
   "message0": "Calls %1",
@@ -113,7 +264,9 @@ const edge_call_def = {
     {
       "type": "field_variable",
       "name": "CALLS_WHAT",
-      "variable": null
+      "variable": null,
+      "variableTypes": ["identifier"],
+      "defaultType": "identifier"
     }
   ],
   "previousStatement": "methorcall",
@@ -128,6 +281,37 @@ Blockly.Blocks['edge_call'] = {
   }
 };
 
+const edge_instance_call_def = {
+  "type": "edge_instance_call",
+  "message0": "Calls %1 of different Instance %2",
+  "args0": [
+    {
+      "type": "field_variable",
+      "name": "CALLS_WHAT",
+      "variable": null,
+      "variableTypes": ["identifier"],
+      "defaultType": "identifier"
+    },
+    {
+      "type": "field_variable",
+      "name": "INST_NAME",
+      "variable": null,
+      "variableTypes": ["instance-group"],
+      "defaultType": "instance-group"
+    }
+  ],
+  "previousStatement": "methorcall",
+  "nextStatement": "methorcall",
+  "colour": 285,
+  "tooltip": "",
+  "helpUrl": ""
+};
+Blockly.Blocks['edge_instance_call'] = {
+  init() {
+    this.jsonInit(edge_instance_call_def);
+  }
+};
+
 const node_method_def = {
   "type": "node_method",
   "message0": "Method %1 %2 %3",
@@ -135,7 +319,9 @@ const node_method_def = {
     {
       "type": "field_variable",
       "name": "NAME",
-      "variable": null
+      "variable": null,
+      "variableTypes": ["identifier"],
+      "defaultType": "identifier"
     },
     {
       "type": "input_dummy"
