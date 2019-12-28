@@ -52,8 +52,6 @@ export class BlocklyDiagramEditorSheet extends React.Component {
     this.props.sessionThing.handleBroadcastMessage('window', 'resize', () => {
       this.updateBlocklySize();
     });
-
-
   }
 
   componentWillUnmount() {

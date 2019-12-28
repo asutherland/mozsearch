@@ -1,6 +1,6 @@
 import Blockly from 'blockly/core';
 
-import { HierNode, HierBuilder } from '../../grokysis/frontend/diagramming/class_diagram.js';
+import { HierNode, HierBuilder } from '../../grokysis/frontend/diagramming/core_diagram.js';
 
 /**
  * Consumes a workspace and produces a HierNode tree representation.
@@ -127,7 +127,7 @@ export class HierNodeGenerator extends HierBuilder {
     }
 
     for (const childBlock of block.getChildren(true)) {
-      this._processBlock(childBlock);
+      this._phase1_processSettingsBlock(childBlock);
     }
   }
 
@@ -225,7 +225,7 @@ export class HierNodeGenerator extends HierBuilder {
     }
 
     for (const childBlock of block.getChildren(true)) {
-      this._processBlock(node, childBlock, deferredBlocks);
+      this._phase2_processBlock(node, childBlock, deferredBlocks);
     }
   }
 
