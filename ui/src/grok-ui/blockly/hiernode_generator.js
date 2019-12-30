@@ -221,8 +221,20 @@ export class HierNodeGenerator extends HierBuilder {
     }
   }
 
+  _extractInstanceGroup(block) {
+    if (!block) {
+      return null;
+    }
+
+    const igVar = this.varMap.getVariableById(block.getFieldValue('INST_NAME'));
+    const igi = this.instanceGroupsByName.get(igVar.name);
+
+    return igi;
+  }
+
   _phase2_processBlock(parentNode, block, deferredBlocks) {
     let node, iterKids;
+
     switch (block.type) {
       case 'setting_instance_group':
       case 'diagram_settings': {
@@ -249,7 +261,9 @@ export class HierNodeGenerator extends HierBuilder {
         // For now we fold the client kind into the name
         const name = `${kindInitialCaps} ${clientName}`;
         node = this._makeNode(
-          parentNode, name, 'group', kindInitialCaps.toLowerCase());
+          parentNode, name, 'group', kindInitialCaps.toLowerCase(),
+          this._extractInstanceGroup(block.getInputTargetBlock('INSTANCE')),
+          null);
         iterKids = iterBlockAndSuccessors(block.getInputTargetBlock('CHILDREN'));
         break;
       }
@@ -258,31 +272,24 @@ export class HierNodeGenerator extends HierBuilder {
         const classVar = this.varMap.getVariableById(block.getFieldValue('NAME'));
         const className = classVar.name;
 
-        // We start out as a node and any methods added to us cause us to
-        // become a table.
-        // XXX actually, right now, we can only do node.  We need to refactor
-        // HierBuilder to allow us to use its node action logic for table
-        // purposes.  Right now there's a little bit too much Symbol
-        // understanding built into Hierbuilder for us to use it.
-        node = this._makeNode(parentNode, className, 'node', 'class', null, className);
-        iterKids = iterBlockAndSuccessors(block.getInputTargetBlock('METHODS'));
-        break;
-      }
-
-      case 'node_instance': {
-        const igVar = this.varMap.getVariableById(block.getFieldValue('INST_NAME'));
-        const igi = this.instanceGroupsByName.get(igVar.name);
-
-        const classVar = this.varMap.getVariableById(block.getFieldValue('NAME'));
-        const className = classVar.name;
-
-        node = this._makeNode(parentNode, className, 'node', 'instance', igi, className);
+        node = this._makeNode(
+          parentNode, className, 'node', 'class',
+          this._extractInstanceGroup(block.getInputTargetBlock('INSTANCE')),
+          className);
         iterKids = iterBlockAndSuccessors(block.getInputTargetBlock('METHODS'));
         break;
       }
 
       case 'node_method': {
-        // XXX ignore these for now.
+        // this is largely the same as the class case above.
+        const methodVar = this.varMap.getVariableById(block.getFieldValue('NAME'));
+        const methodName = methodVar.name;
+
+        node = this._makeNode(
+          parentNode, methodName, 'node', 'method',
+          this._extractInstanceGroup(block.getInputTargetBlock('INSTANCE')),
+          methodName);
+        iterKids = iterBlockAndSuccessors(block.getInputTargetBlock('METHODS'));
         break;
       }
 
@@ -334,22 +341,16 @@ export class HierNodeGenerator extends HierBuilder {
       const ancestorNode = HierNode.findCommonAncestor(parentNode, otherNode);
       if (ancestorNode) {
         ancestorNode.edges.push({ from: parentNode, to: otherNode, kind: 'call' });
+        console.log('generating edge at ancestor', ancestorNode, parentNode, otherNode);
       } else {
         console.warn('skipping edge due to lack of ancestor', parentNode, otherNode);
       }
     };
 
     switch (block.type) {
-      case 'edge_instance_call': {
-        const igVar =
-          this.varMap.getVariableById(block.getFieldValue('INST_NAME'));
-        const igi = this.instanceGroupsByName.get(igVar.name);
-        edgeCommon(igi);
-        break;
-      }
-
       case 'edge_call': {
-        edgeCommon(null);
+        edgeCommon(
+          this._extractInstanceGroup(block.getInputTargetBlock('INSTANCE')));
         break;
       }
 

@@ -160,7 +160,9 @@ const cluster_client_def = {
       "text": ""
     },
     {
-      "type": "input_dummy"
+      "type": "input_value",
+      "name": "INSTANCE",
+      "check": "instance"
     },
     {
       "type": "input_statement",
@@ -168,6 +170,7 @@ const cluster_client_def = {
       "check": "graphy"
     }
   ],
+  "inputsInline": false,
   "previousStatement": "graphy",
   "nextStatement": "graphy",
   "colour": 330,
@@ -192,7 +195,9 @@ const node_class_def = {
       "defaultType": "identifier"
     },
     {
-      "type": "input_dummy"
+      "type": "input_value",
+      "name": "INSTANCE",
+      "check": "instance"
     },
     {
       "type": "input_statement",
@@ -200,6 +205,7 @@ const node_class_def = {
       "check": "methorcall"
     }
   ],
+  "inputsInline": false,
   "previousStatement": "graphy",
   "nextStatement": "graphy",
   "colour": 230,
@@ -212,54 +218,9 @@ Blockly.Blocks['node_class'] = {
   }
 };
 
-const node_instance_def = {
-  "type": "node_instance",
-  "message0": "%1 Instance of %2 %3 %4 %5",
-  "args0": [
-    {
-      "type": "field_variable",
-      "name": "INST_NAME",
-      "variable": null,
-      "variableTypes": ["instance-group"],
-      "defaultType": "instance-group"
-    },
-    {
-      "type": "field_label_serializable",
-      "name": "INST_TYPE",
-      "text": "Class"
-    },
-    {
-      "type": "field_variable",
-      "name": "NAME",
-      "variable": null,
-      "variableTypes": ["identifier"],
-      "defaultType": "identifier"
-    },
-    {
-      "type": "input_dummy"
-    },
-    {
-      "type": "input_statement",
-      "name": "METHODS",
-      "check": "methorcall"
-    }
-  ],
-  "inputsInline": true,
-  "previousStatement": "graphy",
-  "nextStatement": "graphy",
-  "colour": 230,
-  "tooltip": "",
-  "helpUrl": ""
-};
-Blockly.Blocks['node_instance'] = {
-  init() {
-    this.jsonInit(node_instance_def);
-  }
-};
-
 const edge_call_def = {
   "type": "edge_call",
-  "message0": "Calls %1",
+  "message0": "Calls %1 %2",
   "args0": [
     {
       "type": "field_variable",
@@ -267,8 +228,14 @@ const edge_call_def = {
       "variable": null,
       "variableTypes": ["identifier"],
       "defaultType": "identifier"
+    },
+    {
+      "type": "input_value",
+      "name": "INSTANCE",
+      "check": "instance"
     }
   ],
+  "inputsInline": false,
   "previousStatement": "methorcall",
   "nextStatement": "methorcall",
   "colour": 285,
@@ -278,37 +245,6 @@ const edge_call_def = {
 Blockly.Blocks['edge_call'] = {
   init() {
     this.jsonInit(edge_call_def);
-  }
-};
-
-const edge_instance_call_def = {
-  "type": "edge_instance_call",
-  "message0": "Calls %1 of different Instance %2",
-  "args0": [
-    {
-      "type": "field_variable",
-      "name": "CALLS_WHAT",
-      "variable": null,
-      "variableTypes": ["identifier"],
-      "defaultType": "identifier"
-    },
-    {
-      "type": "field_variable",
-      "name": "INST_NAME",
-      "variable": null,
-      "variableTypes": ["instance-group"],
-      "defaultType": "instance-group"
-    }
-  ],
-  "previousStatement": "methorcall",
-  "nextStatement": "methorcall",
-  "colour": 285,
-  "tooltip": "",
-  "helpUrl": ""
-};
-Blockly.Blocks['edge_instance_call'] = {
-  init() {
-    this.jsonInit(edge_instance_call_def);
   }
 };
 
@@ -324,14 +260,17 @@ const node_method_def = {
       "defaultType": "identifier"
     },
     {
-      "type": "input_dummy"
+      "type": "input_value",
+      "name": "INSTANCE",
+      "check": "instance"
     },
     {
       "type": "input_statement",
-      "name": "methorcall",
+      "name": "METHODS",
       "check": "methorcall"
     }
   ],
+  "inputsInline": false,
   "previousStatement": "methorcall",
   "nextStatement": "methorcall",
   "colour": 165,
@@ -341,5 +280,29 @@ const node_method_def = {
 Blockly.Blocks['node_method'] = {
   init() {
     this.jsonInit(node_method_def);
+  }
+};
+
+const instance_group_ref_def = {
+  "type": "instance_group_ref",
+  "message0": "Instance Group %1",
+  "args0": [
+    {
+      "type": "field_variable",
+      "name": "INST_NAME",
+      "variable": null,
+      "variableTypes": ["instance-group"],
+      "defaultType": "instance-group"
+    }
+  ],
+  "inputsInline": false,
+  "output": "instance",
+  "colour": 30,
+  "tooltip": "",
+  "helpUrl": ""
+};
+Blockly.Blocks['instance_group_ref'] = {
+  init() {
+    this.jsonInit(instance_group_ref_def);
   }
 };

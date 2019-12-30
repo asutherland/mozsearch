@@ -193,8 +193,10 @@ export class HierBuilder {
       node.edges = null;
 
       node.id = 'p' + (this.idCounter++);
-      node.edgeInId = node.id + ':w';
-      node.edgeOutId = node.id + ':e';
+      // our ports don't exist in isolation, we also need to include our
+      // table parent's id.
+      node.edgeInId = node.parent.id + ':' + node.id + ':w';
+      node.edgeOutId = node.parent.id + ':' + node.id + ':e';
     }
     // If things have collapsed into us or there are edges at our level, we
     // need to be a cluster.

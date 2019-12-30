@@ -96,20 +96,20 @@ export class BlocklyDiagramEditorSheet extends React.Component {
             <Block type="cluster_process" />
             <Block type="cluster_thread" />
             <Block type="cluster_client" />
-          </Category>
-          <Category name="Classes">
             <Button
               text="New Instance Group"
               callbackKey="new_instance_group"
               />
+            <Block type="instance_group_ref" />
+          </Category>
+          <Category name="Classes">
             <Button
               text="New Class / Method Reference"
               callbackKey="new_class_variable"
               />
             <Block type="node_class" />
-            <Block type="node_instance" />
+            <Block type="node_method" />
             <Block type="edge_call" />
-            <Block type="edge_instance_call" />
           </Category>
           <Category name="Settings">
             <Block type="diagram_settings" />
