@@ -9,8 +9,12 @@ export class HierNode {
     this.depth = depth;
     this.parent = parent;
 
-    // One of process/thread/class/method/etc.
+    // One of group/node for now
     this.nodeKind = null;
+    // One of process/thread/class/method/etc.
+    this.semanticKind = null;
+
+    this.instanceGroup = null;
 
     // For nodes associated with symbols...
     /// The canonical symbol we're associating with this node.
@@ -92,6 +96,16 @@ export class HierNode {
     }
   }
 
+  /**
+   * Any additional style info to emit.  Leading whitespace needs to be emitted.
+   */
+  computeNodeStyling() {
+    if (this.instanceGroup) {
+      return this.instanceGroup.computeNodeStyling(this);
+    }
+    return '';
+  }
+
   static findCommonAncestor(fromNode, toNode) {
     if (!fromNode || !toNode) {
       return null;
@@ -153,7 +167,8 @@ export class HierBuilder {
       // - If the kid is a class, don't collapse into it.  (Classes can still
       //   be clusters, but the idea is they should/need to be distinguished
       //   from classes.)
-      if (!soleKid.sym || !soleKid.sym.isClass) {
+      if (soleKid.nodeKind !== 'group' &&
+          (!soleKid.sym || !soleKid.sym.isClass)) {
         node.id = node.edgeInId = node.edgeOutId = '';
         node.action = 'collapse';
         soleKid.collapsedAncestors = node.collapsedAncestors.concat(node);
@@ -183,7 +198,8 @@ export class HierBuilder {
     }
     // If things have collapsed into us or there are edges at our level, we
     // need to be a cluster.
-    else if (node.collapsedAncestors.length || node.edges.length > 0) {
+    else if (node.nodeKind === 'group' ||
+             node.collapsedAncestors.length || node.edges.length > 0) {
       node.action = 'cluster';
       node.id = 'cluster_c' + (this.idCounter++);
       node.edgeInId = node.edgeOutId = node.id;
@@ -252,7 +268,7 @@ export class HierBuilder {
       // this is a stop-gap to visually show when we're screwing up in the output.
       kidIndent += INDENT;
     } else if (node.action === 'node') {
-      s += indentStr + `${node.id} [label="${node.name}"];\n`;
+      s += indentStr + `${node.id} [label="${node.name}"${node.computeNodeStyling()}];\n`;
     } // else 'flatten'
 
     for (const kid of node.kids.values()) {
