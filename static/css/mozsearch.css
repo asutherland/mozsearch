@@ -635,6 +635,14 @@ span[data-symbols].sticky-highlight, code[data-symbols].sticky-highlight {
   background-color: orange;
 }
 
+/* In order for our mosemove logic to work in diagram tables, polygons need to
+   be exposed to pointer events. */
+polygon {
+  pointer-events: visible;
+}
+
+/* "g" covers stand-alone nodes.  "polygon" covers the table records
+ */
 g[data-symbols].hovered {
   outline: 4px solid yellow;
 }

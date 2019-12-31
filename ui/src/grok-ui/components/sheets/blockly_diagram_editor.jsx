@@ -97,7 +97,7 @@ export class BlocklyDiagramEditorSheet extends React.Component {
             <Block type="cluster_thread" />
             <Block type="cluster_client" />
             <Button
-              text="New Instance Group"
+              text="New Group"
               callbackKey="new_instance_group"
               />
             <Block type="instance_group_ref" />

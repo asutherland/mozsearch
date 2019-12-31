@@ -452,6 +452,12 @@ export default class ClassDiagram extends EE {
       dot: builder.renderToDot(),
       fixupSVG: (svgStr) => {
         return svgStr.replace(/>\n<title>([^<]+)<\/title>/g, (match, nodeId) => {
+          // We explicitly ignore things with a 't' prefix because they are
+          // tables and their first row should be where we expose their
+          // data-symbols, which will happen in the xlink node transform regexp.
+          if (nodeId.startsWith('t')) {
+            return '>';
+          }
           const node = builder.nodeIdToNode.get(nodeId);
           if (!node || !node.sym) {
             // Just eat the title if we can't find the node.
@@ -459,7 +465,13 @@ export default class ClassDiagram extends EE {
           }
 
           return ` data-symbols=${node.sym.rawName}>`;
-        });
+        }).replace(/<a xlink:href="([^"]+)" xlink:title="[^"]+">/g, (match, nodeId) => {
+          const node = builder.nodeIdToNode.get(nodeId);
+          if (!node || !node.sym) {
+            return '<g>';
+          }
+          return `<g data-symbols=${node.sym.rawName}>`;
+        }).replace(/<\/a>/g, "</g>");
       }
     };
   }

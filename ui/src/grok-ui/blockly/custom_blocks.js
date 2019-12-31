@@ -41,7 +41,7 @@ Blockly.Blocks['diagram_settings'] = {
 
 const setting_instance_group_def = {
   "type": "setting_instance_group",
-  "message0": "Instance Group %1 gets color %2",
+  "message0": "Group %1 gets color %2",
   "args0": [
     {
       "type": "field_variable",
@@ -285,7 +285,7 @@ Blockly.Blocks['node_method'] = {
 
 const instance_group_ref_def = {
   "type": "instance_group_ref",
-  "message0": "Instance Group %1",
+  "message0": "Group %1",
   "args0": [
     {
       "type": "field_variable",

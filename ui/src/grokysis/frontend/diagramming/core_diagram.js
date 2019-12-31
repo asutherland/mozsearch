@@ -244,6 +244,16 @@ export class HierBuilder {
     }
   }
 
+  /**
+   * Notable things:
+   * - The normal nodes produce <title>nodeid</title> elements that we rewrite
+   *   in `renderToSVG` to instead be data-symbols on their parent element.
+   * - The use of "href" on the label <TD> nodes results in a "g" wrapping an
+   *   "<a xlink:href xlink:title>".  We currently transform the "a" into a g,
+   *   but could instead manipulate the outer id which ends up with an `id`.
+   *   However, our fix-up pass in renderToSVG is doing things with regexps,
+   *   not the DOM, so simpler may be better.
+   */
   _renderNode(node, indentStr) {
     let s = '';
 
@@ -260,13 +270,13 @@ export class HierBuilder {
     } else if (node.action === 'table') {
       s += indentStr + `${node.id} [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4">\n`;
       kidIndent += INDENT;
-      s += kidIndent + `<tr><td port="${node.id}s0">${node.name}</td></tr>\n`;
+      s += kidIndent + `<tr><td href="${node.id}" port="${node.id}s0">${node.name}</td></tr>\n`;
       wrapEnd = indentStr + `</table>>];\n`;
     } else if (node.action === 'record') {
       // XXX tables can potentially have more than 1 level of depth; we need
       // to be doing some type of indentation or using multiple columns/etc.
       // XXX we want to do some additional label styling...
-      s += indentStr + `<tr><td port="${node.id}">${node.name}</td></tr>\n`;
+      s += indentStr + `<tr><td href="${node.id}" port="${node.id}">${node.name}</td></tr>\n`;
       // this is a stop-gap to visually show when we're screwing up in the output.
       kidIndent += INDENT;
     } else if (node.action === 'node') {
