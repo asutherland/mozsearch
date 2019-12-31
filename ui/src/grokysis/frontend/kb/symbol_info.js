@@ -208,6 +208,18 @@ export default class SymbolInfo extends EE {
              this.sourceFileInfo.dirPath === otherSym.sourceFileInfo.dirPath;
   }
 
+  /**
+   * Helper for diagram hierarchical table display where it's possible we are
+   * being displayed in the context of our parent and so we don't need to
+   * re-display the className/etc.
+   */
+  computeNameGivenParentSym(parentSym) {
+    if (this.fullName && this.fullName.startsWith(parentSym.fullName)) {
+      return this.localName;
+    }
+    return this.prettiestName;
+  }
+
   updatePrettyNameFrom(prettyName, path) {
     // Somewhat bogus mechanism for determining whether we're dealing with JS
     // or not borrowed from original diagramming experiments.

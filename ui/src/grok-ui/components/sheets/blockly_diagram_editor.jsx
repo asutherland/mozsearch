@@ -148,7 +148,9 @@ export class BlocklyDiagramEditorModel {
       kb: this.sessionThing.grokCtx.kb,
     });
     await generator.generate({ workspace });
-    console.log('just generated', generator);
+    if (window.DEBUG_DIAGRAM) {
+      console.log('just generated', generator);
+    }
 
     this.generator = generator;
     this.diagram.markDirty();

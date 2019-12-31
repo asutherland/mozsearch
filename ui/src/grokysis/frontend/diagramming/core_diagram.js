@@ -91,9 +91,8 @@ export class HierNode {
   computeLabel() {
     if (this.collapsedAncestors && this.collapsedAncestors.length) {
       return this.collapsedAncestors.join('::') + '::' + this.name;
-    } else {
-      return this.name;
     }
+    return this.name;
   }
 
   computeClusterStyling() {
@@ -284,17 +283,17 @@ export class HierBuilder {
     } else if (node.action === 'table') {
       s += indentStr + `${node.id} [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4">\n`;
       kidIndent += INDENT;
-      s += kidIndent + `<tr><td href="${node.id}" port="${node.id}s0" ${node.computeTableStyling()}><B>${node.name}</B></td></tr>\n`;
+      s += kidIndent + `<tr><td href="${node.id}" port="${node.id}s0" ${node.computeTableStyling()}><B>${node.computeLabel()}</B></td></tr>\n`;
       wrapEnd = indentStr + `</table>>];\n`;
     } else if (node.action === 'record') {
       // XXX tables can potentially have more than 1 level of depth; we need
       // to be doing some type of indentation or using multiple columns/etc.
       // XXX we want to do some additional label styling...
-      s += indentStr + `<tr><td href="${node.id}" port="${node.id}"  ${node.computeTableStyling()}>${node.name}</td></tr>\n`;
+      s += indentStr + `<tr><td href="${node.id}" port="${node.id}"  ${node.computeTableStyling()}>${node.computeLabel()}</td></tr>\n`;
       // this is a stop-gap to visually show when we're screwing up in the output.
       kidIndent += INDENT;
     } else if (node.action === 'node') {
-      s += indentStr + `${node.id} [label="${node.name}"${node.computeNodeStyling()}];\n`;
+      s += indentStr + `${node.id} [label="${node.computeLabel()}"${node.computeNodeStyling()}];\n`;
     } // else 'flatten'
 
     for (const kid of node.kids.values()) {

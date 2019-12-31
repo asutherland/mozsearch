@@ -178,6 +178,12 @@ export class HierNodeGenerator extends HierBuilder {
         console.warn('failed to resolve id', identifier);
       }
     }
+    // Make the name relative to the parent node so that when a method is
+    // grouped under its parent class we don't display the class name when
+    // displaying the method.
+    if (sym && parentNode.sym) {
+      name = sym.computeNameGivenParentSym(parentNode.sym);
+    }
 
     const node = parentNode.getOrCreateKid(name);
     node.nodeKind = nodeKind;
@@ -338,7 +344,11 @@ export class HierNodeGenerator extends HierBuilder {
       }
 
       default: {
-        throw new Error(`unsupported block type: ${block.type}`);
+        // I had this throw before, but that clearly ends up brittle for
+        // modifier blocks like instance_group_refs where in testing one might
+        // not think to let them be top-level.
+        console.warn(`unsupported block type observed: ${block.type}`);
+        break;
       }
     }
 
@@ -375,7 +385,7 @@ export class HierNodeGenerator extends HierBuilder {
       const ancestorNode = HierNode.findCommonAncestor(parentNode, otherNode);
       if (ancestorNode) {
         ancestorNode.edges.push({ from: parentNode, to: otherNode, kind: 'call' });
-        console.log('generating edge at ancestor', ancestorNode, parentNode, otherNode);
+        //console.log('generating edge at ancestor', ancestorNode, parentNode, otherNode);
       } else {
         console.warn('skipping edge due to lack of ancestor', parentNode, otherNode);
       }
