@@ -331,6 +331,12 @@ export class HierNodeGenerator extends HierBuilder {
         break;
       }
 
+      case 'instance_group_ref': {
+        // Ignore these when they're not attached to something, which is the
+        // case if we're seeing them here, because they must be top-level.
+        break;
+      }
+
       default: {
         throw new Error(`unsupported block type: ${block.type}`);
       }

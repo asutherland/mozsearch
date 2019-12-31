@@ -284,7 +284,7 @@ export class HierBuilder {
     } else if (node.action === 'table') {
       s += indentStr + `${node.id} [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4">\n`;
       kidIndent += INDENT;
-      s += kidIndent + `<tr><td href="${node.id}" port="${node.id}s0" ${node.computeTableStyling()}>${node.name}</td></tr>\n`;
+      s += kidIndent + `<tr><td href="${node.id}" port="${node.id}s0" ${node.computeTableStyling()}><B>${node.name}</B></td></tr>\n`;
       wrapEnd = indentStr + `</table>>];\n`;
     } else if (node.action === 'record') {
       // XXX tables can potentially have more than 1 level of depth; we need
