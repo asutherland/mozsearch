@@ -10,6 +10,20 @@ class InstanceGroupInfo {
     this.symToNode = new Map();
   }
 
+  computeClusterStyling(hierNode) {
+    // If the node's parent shares the same instance group, there's no need to
+    // also style us.
+    if (hierNode.parent && hierNode.parent.instanceGroup === this) {
+      return '';
+    }
+
+    if (this.fillColor) {
+      return `style=filled\ncolor="${this.fillColor}"\n`;
+    }
+
+    return '';
+  }
+
   computeNodeStyling(hierNode) {
     // If the node's parent shares the same instance group, there's no need to
     // also style us.
@@ -19,6 +33,20 @@ class InstanceGroupInfo {
 
     if (this.fillColor) {
       return `, style=filled, fillcolor="${this.fillColor}"`;
+    }
+
+    return '';
+  }
+
+  computeTableStyling(hierNode) {
+    // If the node's parent shares the same instance group, there's no need to
+    // also style us.
+    if (hierNode.parent && hierNode.parent.instanceGroup === this) {
+      return '';
+    }
+
+    if (this.fillColor) {
+      return `bgcolor="${this.fillColor}"`;
     }
 
     return '';

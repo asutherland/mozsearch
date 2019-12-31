@@ -96,12 +96,26 @@ export class HierNode {
     }
   }
 
+  computeClusterStyling() {
+    if (this.instanceGroup) {
+      return this.instanceGroup.computeClusterStyling(this);
+    }
+    return '';
+  }
+
   /**
    * Any additional style info to emit.  Leading whitespace needs to be emitted.
    */
   computeNodeStyling() {
     if (this.instanceGroup) {
       return this.instanceGroup.computeNodeStyling(this);
+    }
+    return '';
+  }
+
+  computeTableStyling() {
+    if (this.instanceGroup) {
+      return this.instanceGroup.computeTableStyling(this);
     }
     return '';
   }
@@ -263,20 +277,20 @@ export class HierBuilder {
       const soleKid = Array.from(node.kids.values())[0];
       return this._renderNode(soleKid, indentStr);
     } else if (node.action === 'cluster') {
-      s += indentStr + `subgraph ${node.id} {\n`;
+      s += indentStr + `subgraph ${node.id} {\n${node.computeClusterStyling()}`;
       kidIndent += INDENT;
       s += kidIndent + `label = "${node.computeLabel()}";\n\n`;
       wrapEnd = indentStr + '}\n';
     } else if (node.action === 'table') {
       s += indentStr + `${node.id} [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4">\n`;
       kidIndent += INDENT;
-      s += kidIndent + `<tr><td href="${node.id}" port="${node.id}s0">${node.name}</td></tr>\n`;
+      s += kidIndent + `<tr><td href="${node.id}" port="${node.id}s0" ${node.computeTableStyling()}>${node.name}</td></tr>\n`;
       wrapEnd = indentStr + `</table>>];\n`;
     } else if (node.action === 'record') {
       // XXX tables can potentially have more than 1 level of depth; we need
       // to be doing some type of indentation or using multiple columns/etc.
       // XXX we want to do some additional label styling...
-      s += indentStr + `<tr><td href="${node.id}" port="${node.id}">${node.name}</td></tr>\n`;
+      s += indentStr + `<tr><td href="${node.id}" port="${node.id}"  ${node.computeTableStyling()}>${node.name}</td></tr>\n`;
       // this is a stop-gap to visually show when we're screwing up in the output.
       kidIndent += INDENT;
     } else if (node.action === 'node') {
