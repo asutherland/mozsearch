@@ -57,14 +57,14 @@ class InstanceGroupInfo {
    * Produce any top-level graph info for the group.
    */
   renderTopLevelDot() {
-    if (this.rank) {
+    if (this.rank && this.symToNode.size) {
       const nodeIds = [];
       for (const node of this.symToNode.values()) {
         if (node.rankId) {
           nodeIds.push(node.rankId);
         }
       }
-      return `{ rank=${this.rank}; ${nodeIds.join('; ')}}\n`;
+      return `{ rank="${this.rank}"; ${nodeIds.join('; ')}; }\n`;
     }
     return '';
   }
@@ -111,6 +111,18 @@ export class HierNodeGenerator extends HierBuilder {
      * Maps "global" non-instanced symbols to their HierNode instances.
      */
     this.symToNode = null;
+    /**
+     * This contains all of the entries from instance groups, except when
+     * a collision would happen (more than one value for a given key), we
+     * replace the value with `null` to convey that there is no ambiguous
+     * resolution in this case.
+     *
+     * This is immediately motivated by the change to use instance groups to
+     * support rank configuration purposes, but in general seems to be a useful
+     * mechanism to not require thinking about groups too much until multiple
+     * instances of a symbol exist in a graph.
+     */
+    this.fallbackSymToNode = null;
 
     this.instanceGroupsByName = null;
 
@@ -165,6 +177,7 @@ export class HierNodeGenerator extends HierBuilder {
 
     // ## Phase 2 Traversal: Render to HierNode
     this.symToNode = new Map();
+    this.fallbackSymToNode = new Map();
     const rootNode = this.root;
     rootNode.action = 'flatten';
     rootNode.id = rootNode.edgeInId = rootNode.edgeOutId = '';
@@ -222,6 +235,16 @@ export class HierNodeGenerator extends HierBuilder {
     if (sym) {
       if (instanceGroup) {
         instanceGroup.symToNode.set(sym, node);
+        // Add this node to the fallback map.  If there's already something in
+        // the map and it's not already this node (which in the future could
+        // belong to multiple groups), then collide union it to null.
+        if (this.fallbackSymToNode.has(sym)) {
+          if (this.fallbackSymToNode.get(sym) !== node) {
+            this.fallbackSymToNode.set(sym, null);
+          }
+        } else {
+          this.fallbackSymToNode.set(sym, node);
+        }
       } else {
         this.symToNode.set(sym, node);
       }
@@ -414,11 +437,15 @@ export class HierNodeGenerator extends HierBuilder {
       let otherNode;
       if (explicitInstanceGroup) {
         otherNode = explicitInstanceGroup.symToNode.get(callSym);
-      } else if (parentNode.instanceGroup) {
+      }
+      if (!otherNode && parentNode.instanceGroup) {
         otherNode = parentNode.instanceGroup.symToNode.get(callSym);
       }
-      if (!explicitInstanceGroup && !otherNode) {
+      if (!otherNode) {
         otherNode = this.symToNode.get(callSym);
+      }
+      if (!otherNode) {
+        otherNode = this.fallbackSymToNode.get(callSym);
       }
       if (!otherNode) {
         console.warn('unable to find call target', callSym);
