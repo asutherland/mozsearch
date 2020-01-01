@@ -43,6 +43,9 @@ export class HierNode {
 
     // The graphviz id for this hierarchy node.
     this.id = '';
+    // The id to use for this node for rank purposes.  For records, this is the
+    // parent table.
+    this.rankId = '';
     // The graphviz id to use for incoming edges.  This matters for ports.
     this.edgeInId = '';
     // The graphviz id to use for outgoing edges.  This matters for ports.
@@ -163,8 +166,20 @@ export class HierBuilder {
   constructor() {
     this.root = new HierNode(null, '', 0);
 
+    // default algorithmic settings that will get mutated by any 'setting_algo'
+    // block we see.  (And there could be multiple contradictory ones right
+    // now.)
+    this.settings = {
+      layoutDir: 'TD',
+      engine: 'dot',
+    };
+
     this.idCounter = 0;
     this.nodeIdToNode = new Map();
+
+    // InstanceGroupInstances get crammed in here so they can contribute to
+    // the final rendered dot.
+    this.topLevelExtra = [];
   }
 
   _determineNodeAction(node, classAncestor, inTable) {
@@ -182,7 +197,7 @@ export class HierBuilder {
       //   from classes.)
       if (soleKid.nodeKind !== 'group' &&
           (!soleKid.sym || !soleKid.sym.isClass)) {
-        node.id = node.edgeInId = node.edgeOutId = '';
+        node.id = node.rankId = node.edgeInId = node.edgeOutId = '';
         node.action = 'collapse';
         soleKid.collapsedAncestors = node.collapsedAncestors.concat(node);
         this._determineNodeAction(soleKid, false);
@@ -196,7 +211,7 @@ export class HierBuilder {
 
     if (isRoot) {
       node.action = 'flatten';
-      node.id = node.edgeInId = node.edgeOutId = '';
+      node.id = node.rankId = node.edgeInId = node.edgeOutId = '';
     }
     else if (inTable) {
       // there are no more decisions to make if we're in a table; we're a record
@@ -206,6 +221,7 @@ export class HierBuilder {
       node.edges = null;
 
       node.id = 'p' + (this.idCounter++);
+      node.rankId = node.parent.id;
       // our ports don't exist in isolation, we also need to include our
       // table parent's id.
       node.edgeInId = node.parent.id + ':' + node.id + ':w';
@@ -216,7 +232,7 @@ export class HierBuilder {
     else if (node.nodeKind === 'group' ||
              node.collapsedAncestors.length || node.edges.length > 0) {
       node.action = 'cluster';
-      node.id = 'cluster_c' + (this.idCounter++);
+      node.id = node.rankId = 'cluster_c' + (this.idCounter++);
       node.edgeInId = node.edgeOutId = node.id;
     }
     // If the number of internal edges are low and we've reached a class AND
@@ -224,21 +240,21 @@ export class HierBuilder {
     else if (beClass && (node.descendantEdgeCount < 5) && node.kids.size) {
       node.action = 'table';
       beInTable = node;
-      node.id = 't' + (this.idCounter++);
-      const slotId = node.id += 's0';
+      node.id = node.rankId = 't' + (this.idCounter++);
+      const slotId = node.id + 's0';
       node.edgeInId = slotId + ':w';
       node.edgeOutId = slotId + ':e';
     }
     // If there are kids, we want to be a cluster after all.
     else if (node.kids.size > 0) {
       node.action = 'cluster';
-      node.id = 'cluster_c' + (this.idCounter++);
+      node.id = node.rankId = 'cluster_c' + (this.idCounter++);
       node.edgeInId = node.edgeOutId = node.id;
     }
     // And if there were no kids, we should just be a standard node.
     else {
       node.action = 'node';
-      node.id = 'n' + (this.idCounter++);
+      node.id = node.rankId = 'n' + (this.idCounter++);
       node.edgeInId = node.edgeOutId = node.id;
     }
 
@@ -323,9 +339,12 @@ export class HierBuilder {
 
   renderToDot() {
     const dotBody = this._renderNode(this.root, INDENT);
+    const topLevelLines = this.topLevelExtra.reduce((accum, renderer) => {
+      return accum + renderer.renderTopLevelDot();
+    }, '');
     const dot = `digraph "" {
   newrank = true;
-  rankdir = "LR";
+  rankdir = "${this.settings.layoutDir}";
   fontname = "Arial";
   splines = spline;
 
@@ -333,6 +352,7 @@ export class HierBuilder {
   edge [arrowhead=open];
 
   ${dotBody}
+  ${topLevelLines}
 }`;
 
     return dot;

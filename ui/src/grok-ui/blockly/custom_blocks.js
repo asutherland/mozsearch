@@ -39,6 +39,7 @@ Blockly.Blocks['diagram_settings'] = {
   }
 };
 
+// TODO: rename to be about the group color
 const setting_instance_group_def = {
   "type": "setting_instance_group",
   "message0": "Group %1 gets color %2",
@@ -65,6 +66,108 @@ const setting_instance_group_def = {
 Blockly.Blocks['setting_instance_group'] = {
   init() {
     this.jsonInit(setting_instance_group_def);
+  }
+};
+
+const setting_group_rank_def = {
+  "type": "setting_group_rank",
+  "message0": "Group %1 gets layout rank %2",
+  "args0": [
+    {
+      "type": "field_variable",
+      "name": "INST_NAME",
+      "variable": null,
+      "variableTypes": ["instance-group"],
+      "defaultType": "instance-group"
+    },
+    {
+      "type": "field_dropdown",
+      "name": "RANK",
+      "options": [
+        [
+          "same",
+          "same"
+        ],
+        [
+          "min",
+          "min"
+        ],
+        [
+          "source",
+          "source"
+        ],
+        [
+          "max",
+          "max"
+        ],
+        [
+          "sink",
+          "sink"
+        ]
+      ]
+    }
+  ],
+  "previousStatement": "setting",
+  "nextStatement": "setting",
+  "colour": 30,
+  "tooltip": "",
+  "helpUrl": ""
+};
+Blockly.Blocks['setting_group_rank'] = {
+  init() {
+    this.jsonInit(setting_group_rank_def);
+  }
+};
+
+const setting_algo_def = {
+  "type": "setting_algo",
+  "message0": "Layout Direction: %1 %2 Rendering Engine %3",
+  "args0": [
+    {
+      "type": "field_dropdown",
+      "name": "LAYOUT_DIR",
+      "options": [
+        [
+          "LR",
+          "LR"
+        ],
+        [
+          "TD",
+          "TD"
+        ]
+      ]
+    },
+    {
+      "type": "input_dummy"
+    },
+    {
+      "type": "field_dropdown",
+      "name": "ENGINE",
+      "options": [
+        [
+          "dot",
+          "dot"
+        ],
+        [
+          "neato",
+          "neato"
+        ],
+        [
+          "fdp",
+          "fdp"
+        ]
+      ]
+    }
+  ],
+  "previousStatement": "setting",
+  "nextStatement": "setting",
+  "colour": 30,
+  "tooltip": "",
+  "helpUrl": ""
+};
+Blockly.Blocks['setting_algo'] = {
+  init() {
+    this.jsonInit(setting_algo_def);
   }
 };
 

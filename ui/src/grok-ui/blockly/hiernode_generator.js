@@ -6,6 +6,7 @@ class InstanceGroupInfo {
   constructor(name) {
     this.groupName = name;
     this.fillColor = null;
+    this.rank = null;
 
     this.symToNode = new Map();
   }
@@ -51,6 +52,22 @@ class InstanceGroupInfo {
 
     return '';
   }
+
+  /**
+   * Produce any top-level graph info for the group.
+   */
+  renderTopLevelDot() {
+    if (this.rank) {
+      const nodeIds = [];
+      for (const node of this.symToNode.values()) {
+        if (node.rankId) {
+          nodeIds.push(node.rankId);
+        }
+      }
+      return `{ rank=${this.rank}; ${nodeIds.join('; ')}}\n`;
+    }
+    return '';
+  }
 }
 
 function iterBlockAndSuccessors(initialBlock) {
@@ -87,6 +104,7 @@ export class HierNodeGenerator extends HierBuilder {
 
     this.kb = kb;
 
+
     // Maps identifier strings to searchfox SymbolInfo instances.
     this.idToSym = null;
     /**
@@ -118,6 +136,9 @@ export class HierNodeGenerator extends HierBuilder {
       if (blVar.type === 'instance-group') {
         const igi = new InstanceGroupInfo(blVar.name);
         instanceGroupsByName.set(igi.groupName, igi);
+        // This is the hook that lets the instance groups contribute top-level
+        // dot output for rank=same/etc.
+        this.topLevelExtra.push(igi);
       }
       // must be 'identifier'
 
@@ -219,6 +240,21 @@ export class HierNodeGenerator extends HierBuilder {
           igi.fillColor = block.getFieldValue('INST_COLOR');
           break;
         }
+
+        case 'setting_group_rank': {
+          const igVar =
+            this.varMap.getVariableById(block.getFieldValue('INST_NAME'));
+          const igi = this.instanceGroupsByName.get(igVar.name);
+          igi.rank = block.getFieldValue('RANK');
+          break;
+        }
+
+        case 'setting_algo': {
+          this.settings.layoutDir = block.getFieldValue('LAYOUT_DIR');
+          this.settings.engine = block.getFieldValue('ENGINE');
+          break;
+        }
+
         case 'diagram_settings': {
           iterKids =
             iterBlockAndSuccessors(block.getInputTargetBlock('SETTINGS'));
@@ -239,7 +275,9 @@ export class HierNodeGenerator extends HierBuilder {
 
   _phase1_processBlock(block) {
     switch (block.type) {
+      case 'setting_algo':
       case 'setting_instance_group':
+      case 'setting_group_rank':
       case 'diagram_settings': {
         // When we see a settings block, we transfer control flow to
         // _processSettingsBlock and it handles any recursion.  So we return
@@ -270,9 +308,9 @@ export class HierNodeGenerator extends HierBuilder {
     let node, iterKids;
 
     switch (block.type) {
-      case 'setting_instance_group':
       case 'diagram_settings': {
         // We already processed settings in phase 1.
+        // We deal with all setting_* in the default.
         return;
       }
 
@@ -344,6 +382,10 @@ export class HierNodeGenerator extends HierBuilder {
       }
 
       default: {
+        // Avoid having to add all new setting blocks to the case.
+        if (block.type.startsWith('setting_')) {
+          break;
+        }
         // I had this throw before, but that clearly ends up brittle for
         // modifier blocks like instance_group_refs where in testing one might
         // not think to let them be top-level.

@@ -30,12 +30,12 @@ export default class BlocklyDiagram extends DirtyingComponent {
       const { diagram, model } = this.props;
       const grokCtx = diagram.grokCtx;
       // We diverge from ClassDiagram here.
-      const { dot, fixupSVG } = diagram.renderToSVG(model.generator);
+      const { dot, settings, fixupSVG } = diagram.renderToSVG(model.generator);
       if (window.DEBUG_DIAGRAM) {
         console.log('rendering DOT:\n' + dot);
       }
       grokCtx.vizJs.renderString(dot, {
-        engine: "dot",
+        engine: settings.engine,
         format: "svg",
       }).then((rawSvg) => {
         const svgStr = fixupSVG(rawSvg);

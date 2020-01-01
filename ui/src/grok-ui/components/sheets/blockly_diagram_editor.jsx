@@ -80,7 +80,7 @@ export class BlocklyDiagramEditorSheet extends React.Component {
         const workspace = button.getTargetWorkspace();
         Blockly.Variables.createVariable(workspace, null, 'identifier');
       }
-    }
+    };
 
     return (
       <Split className="blocklyDiagramEditorSheet"
@@ -114,6 +114,8 @@ export class BlocklyDiagramEditorSheet extends React.Component {
           <Category name="Settings">
             <Block type="diagram_settings" />
             <Block type="setting_instance_group" />
+            <Block type="setting_group_rank" />
+            <Block type="setting_algo" />
           </Category>
         </BlocklyEditor>
         <BlocklyDiagram

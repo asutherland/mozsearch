@@ -449,6 +449,7 @@ export default class ClassDiagram extends EE {
   renderToSVG(builder) {
     // ## And now the actual dot source!
     return {
+      settings: builder.settings,
       dot: builder.renderToDot(),
       fixupSVG: (svgStr) => {
         return svgStr.replace(/>\n<title>([^<]+)<\/title>/g, (match, nodeId) => {
