@@ -168,6 +168,18 @@ conservative range of lines covering the children of a definition.
 In cases where we have accurate nestingRange information, we may be able to do
 neat tricks like highlight the area between braces or implement code folding.
 
+#### Experimental / in flux
+These fields, like the "structured" record type, are in flux as part of work
+on the fancy branch.
+
+A `type` may be emitted which is a string representation of the compiler's
+understanding of the type/return type of something.  This will include
+qualifiers like const/it's a pointer/it's a reference.
+
+A `typesym` symbol may be emitted when the type corresponds to a type indexed by
+searchfox (which will inherently not include qualifiers unless we're talking
+about method signatures).
+
 ### Targets
 
 Target records additionally contain a `kind` property, a `pretty` property,
@@ -189,6 +201,61 @@ link to the context in search results that include the target record.
 
 The `peekRange` property is a range of lines that appears to be
 currently unused.
+
+### Structured Records
+
+Structured records are an attempt to provide richer information about types and
+their relationships.  This is an evolving area of Searchfox, and is subject to
+change.  This expected change also informs the design of the record format,
+which is just a wrapper around an opaque JSON structure as far as `analysis.rs`
+is concerned.  (All other record types are flat with a well known set of
+keys/values.)
+
+We emit structured records at the point of their definition.  Structured
+records reference other structured records by their searchfox symbol identifier.
+A structured record itself won't embed child types (even if they're not visible
+outside the type) but instead reference them (which may involve searchfox
+generating identifiers that have no meaning outside of searchfox, like is done
+for locals).
+
+Because of the realities of compilation, we know a parent class won't
+necessarily know all of its subclasses, so all type references in emitted
+records will generally only be upwards/sideways, never downwards.  We depend on
+cross-referencing for determining sets of children/etc.
+
+So for a class, we might expect the structured record in the analysis file to
+contain:
+- A list of its known super-classes.
+- A list of its fields and members.
+
+But it would not contain:
+- A list of its known sub-classes.  This will be determined by
+  cross-referencing.
+
+#### Bytes and CharUnits
+
+Clang defines a "Character Units" type
+[`CharUnits`](https://clang.llvm.org/doxygen/classclang_1_1CharUnits.html#details)
+that basically means bytes.  Searchfox just calls them bytes and assumes an
+8-bit byte because strings are such a large part of the Firefox codebase that
+calling bytes "char units" just adds terrifying confusion.
+
+#### Formal Hierarchy:
+
+Record info:
+
+- `sizeBytes`: Size in bytes.
+- `fields`: An array of:
+  - `pretty`: The pretty name/identifier for this field.
+  - `sym`: The searchfox symbol for this field.
+  - `type`: Compiler's string representation of the type.  This is still
+    somewhat experimental and the same thing we emit for source records.
+  - `typesym`: The searchfox symbol for the type of this field.
+  - `offsetBytes`: Byte offset of the field within this immediate structure.
+  - `bitPositions`: Only present in bit-fields.  Object with the following
+    properties whose names are derived from the AST dumper:
+    - `begin`
+    - `width`
 
 ### C++ inheritance
 
