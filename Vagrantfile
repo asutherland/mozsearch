@@ -11,7 +11,7 @@ Vagrant.configure("2") do |config|
   config.vm.provider "virtualbox" do |v, override|
     override.vm.synced_folder './', '/vagrant'
 
-    v.memory = 10000
+    v.memory = 16000
     v.cpus = 4
   end
 
@@ -23,7 +23,7 @@ Vagrant.configure("2") do |config|
     # time, which you should not do.
     override.vm.synced_folder './', '/vagrant', type: 'nfs', nfs_udp: false, accessmode: "squash", mount_options: ['local_lock=all']
 
-    v.memory = 10000
+    v.memory = 16000
     v.cpus = 4
   end
 end
