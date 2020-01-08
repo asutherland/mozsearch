@@ -1069,11 +1069,16 @@ public:
     std::string json_str;
     llvm::raw_string_ostream ros(json_str);
     llvm::json::OStream J(ros);
+    // Start the top-level object.
+    J.objectBegin();
 
     unsigned StartOffset = SM.getFileOffset(Loc);
     unsigned EndOffset =
         StartOffset + Lexer::MeasureTokenLength(Loc, SM, CI.getLangOpts());
     J.attribute("loc", locationToString(Loc, EndOffset - StartOffset));
+    J.attribute("structured", 1);
+    J.attribute("pretty", getQualifiedNamedecl());
+    J.attribute("sym", getMangledName(CurMangleContext, decl));
 
     const ASTContext &C = *AstContext;
     const ASTRecordLayout &Layout = C.getASTRecordLayout(decl);
@@ -1115,7 +1120,12 @@ public:
     J.arrayEnd();
     J.attributeEnd();
 
+    // End the top-level object.
+    J.objectEnd();
+
     FileInfo *F = getFileInfo(Loc);
+    // we want a newline.
+    ros << '\n';
     F->Output.push_back(std::move(ros.str()));
   }
 
@@ -1563,7 +1573,14 @@ public:
 
     // In-progress structured info emission.
     if (RecordDecl *D2 = dyn_cast<RecordDecl>(D)) {
-      if (D2->isThisDeclarationADefinition()) {
+      if (D2->isThisDeclarationADefinition() &&
+          // XXX getASTRecordLayout doesn't work for dependent types, so we
+          // avoid calling into emitStructuredInfo for now if there's a
+          // dependent type or if we're in any kind of template context.  This
+          // should be re-evaluated once this is working for normal classes and
+          // we can better evaluate what is useful.
+          !D2->isDependentType() &&
+          !TemplateStack) {
         emitStructuredInfo(Loc, D2);
       }
     }
