@@ -1,6 +1,6 @@
-CC ?= clang
-CXX ?= clang++
-LLVM_CONFIG ?= llvm-config
+CC = clang$(CLANG_SUFFIX)
+CXX = clang++$(CLANG_SUFFIX)
+LLVM_CONFIG = llvm-config$(CLANG_SUFFIX)
 LLVM_LDFLAGS := $(shell ${LLVM_CONFIG} --ldflags)
 CXXFLAGS := $(shell ${LLVM_CONFIG} --cxxflags) -fPIC -Wall -Wno-strict-aliasing \
 	$(if $(DEBUG),-O0 -g)
