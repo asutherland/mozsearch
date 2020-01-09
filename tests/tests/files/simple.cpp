@@ -36,6 +36,15 @@ struct S : public R
     virtual void v();
 };
 
+void S::m() {
+}
+
+void S::m(int i) {
+}
+
+void S::v() {
+}
+
 namespace {
 int xyz;
 };
@@ -51,6 +60,15 @@ struct T : public S, public S2 {
 
     int field;
 };
+
+void T::m() {
+}
+
+void T::m(int i) {
+}
+
+void T::v() {
+}
 
 template<typename T>
 struct OtherObj {
