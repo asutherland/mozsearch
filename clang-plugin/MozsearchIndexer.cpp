@@ -1077,7 +1077,7 @@ public:
         StartOffset + Lexer::MeasureTokenLength(Loc, SM, CI.getLangOpts());
     J.attribute("loc", locationToString(Loc, EndOffset - StartOffset));
     J.attribute("structured", 1);
-    J.attribute("pretty", getQualifiedNamedecl());
+    J.attribute("pretty", getQualifiedName(decl));
     J.attribute("sym", getMangledName(CurMangleContext, decl));
 
     const ASTContext &C = *AstContext;
@@ -1114,6 +1114,19 @@ public:
 
         J.objectEnd();
         J.attributeEnd();
+      } else {
+        // Try and get the field as a record itself so we can know its size, but
+        // we don't actually want to recurse into it.
+        if (auto FieldLayout = Field.getType()->getAs<RecordType>()) {
+          J.attribute("sizeBytes", Layout.getSize().getQuantity());
+        } else {
+          // We were unable to get it as a record, which suggests it's a normal
+          // type, in which case let's just ask for the type size.  (Maybe this
+          // would also work for the above case too?)
+          uint64_t typeSizeBits = C.getTypeSize(Field.getType());
+          CharUnits typeSizeBytes = C.toCharUnitsFromBits(typeSizeBits);
+          J.attribute("sizeBytes", typeSizeBytes.getQuantity());
+        }
       }
       J.objectEnd();
     }
