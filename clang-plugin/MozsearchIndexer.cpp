@@ -37,6 +37,12 @@
 #include "JSONFormatter.h"
 #include "StringOperations.h"
 
+// What's the maximum line length we support?  If there's a line longer than
+// this, we corrupt it.  We previously had hardcoded this to 64k and with the
+// structured record, we hit the limit.  As I bump this, I'm also altering an
+// initial overly verbose method of expressing field/method booleans.
+#define MAX_LINE_LENGTH 256000
+
 #if CLANG_VERSION_MAJOR < 8
 // Starting with Clang 8.0 some basic functions have been renamed
 #define getBeginLoc getLocStart
@@ -622,7 +628,7 @@ public:
       // Merge our results with the existing lines from the output file.
       // This ensures that header files that are included multiple times
       // in different ways are analyzed completely.
-
+      char Buffer[MAX_LINE_LENGTH];
       FILE *Fp = Lock.openFile();
       if (!Fp) {
         fprintf(stderr, "Unable to open input file %s\n", Filename.c_str());
@@ -640,7 +646,6 @@ public:
       std::string LastNewWritten;
 
       // Loop over the existing (sorted) lines in the analysis output file.
-      char Buffer[65536];
       while (fgets(Buffer, sizeof(Buffer), Fp)) {
         std::string OldLine(Buffer);
 
@@ -1101,8 +1106,13 @@ public:
         J.attribute("pretty", getQualifiedName(BaseDecl));
         J.attribute("sym", getMangledName(CurMangleContext, BaseDecl));
 
-        J.attribute("isVirtual", Base.isVirtual());
-        J.attribute("isClass", Base.isBaseOfClass());
+        J.attributeBegin("props");
+        J.arrayBegin();
+        if (Base.isVirtual()) {
+          J.value("virtual");
+        }
+        J.arrayEnd();
+        J.attributeEnd();
 
         J.objectEnd();
       }
@@ -1122,17 +1132,31 @@ public:
         // to a source location in the source.  Should we be emitting
         // structured info for those when we're processing the class here?
 
-        // these 2 should perhaps be more of an enum
-        J.attribute("isStatic", MethodDecl->isStatic());
-        J.attribute("isInstance", MethodDecl->isInstance());
-        J.attribute("isVirtual", MethodDecl->isVirtual());
-        // this would potentially want to perhaps be an enum over this and
-        // isDefaulted() and isExplicitlyDefaulted() and maybe isDeleted()?
-        J.attribute("isUserProvided", MethodDecl->isUserProvided());
-        J.attribute("isDefaulted", MethodDecl->isDefaulted());
-        J.attribute("isDeleted", MethodDecl->isDeleted());
-
-        J.attribute("isConstexpr", MethodDecl->isConstexpr());
+        J.attributeBegin("props");
+        J.arrayBegin();
+        if (MethodDecl->isStatic()) {
+          J.value("static");
+        }
+        if (MethodDecl->isInstance()) {
+          J.value("instance");
+        }
+        if (MethodDecl->isVirtual()) {
+          J.value("virtual");
+        }
+        if (MethodDecl->isUserProvided()) {
+          J.value("user");
+        }
+        if (MethodDecl->isDefaulted()) {
+          J.value("defaulted");
+        }
+        if (MethodDecl->isDeleted()) {
+          J.value("deleted");
+        }
+        if (MethodDecl->isConstexpr()) {
+          J.value("constexpr");
+        }
+        J.arrayEnd();
+        J.attributeEnd();
 
         J.objectEnd();
       }
@@ -1172,7 +1196,8 @@ public:
       } else {
         // Try and get the field as a record itself so we can know its size, but
         // we don't actually want to recurse into it.
-        if (auto FieldLayout = Field.getType()->getAs<RecordType>()) {
+        if (auto FieldRec = Field.getType()->getAs<RecordType>()) {
+          auto const &FieldLayout = C.getASTRecordLayout(FieldRec->getDecl());
           J.attribute("sizeBytes", FieldLayout.getSize().getQuantity());
         } else {
           // We were unable to get it as a record, which suggests it's a normal
@@ -1230,18 +1255,40 @@ void emitStructuredInfo(SourceLocation Loc, const FunctionDecl *decl) {
       J.arrayEnd();
       J.attributeEnd();
 
-      J.attribute("isStatic", cxxDecl->isStatic());
-      J.attribute("isInstance", cxxDecl->isInstance());
-      J.attribute("isVirtual", cxxDecl->isVirtual());
-
-      J.attribute("isUserProvided", cxxDecl->isUserProvided());
     } else {
       J.attribute("kind", "function");
     }
 
-    J.attribute("isDefaulted", decl->isDefaulted());
-    J.attribute("isDeleted", decl->isDeleted());
-    J.attribute("isConstexpr", decl->isConstexpr());
+    // ## Props
+    J.attributeBegin("props");
+    J.arrayBegin();
+    // some of these are only possible on a CXXMethodDecl, but we want them all
+    // in the same array, so condition these first ones.
+    if (cxxDecl) {
+      if (cxxDecl->isStatic()) {
+        J.value("static");
+      }
+      if (cxxDecl->isInstance()) {
+        J.value("instance");
+      }
+      if (cxxDecl->isVirtual()) {
+        J.value("virtual");
+      }
+      if (cxxDecl->isUserProvided()) {
+        J.value("user");
+      }
+    }
+    if (decl->isDefaulted()) {
+      J.value("defaulted");
+    }
+    if (decl->isDeleted()) {
+      J.value("deleted");
+    }
+    if (decl->isConstexpr()) {
+      J.value("constexpr");
+    }
+    J.arrayEnd();
+    J.attributeEnd();
 
     // End the top-level object.
     J.objectEnd();
