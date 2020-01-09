@@ -1080,10 +1080,65 @@ public:
     J.attribute("pretty", getQualifiedName(decl));
     J.attribute("sym", getMangledName(CurMangleContext, decl));
 
+    J.attribute("kind", TypeWithKeyword::getTagTypeKindName(decl->getTagKind()));
+
     const ASTContext &C = *AstContext;
     const ASTRecordLayout &Layout = C.getASTRecordLayout(decl);
 
     J.attribute("sizeBytes", Layout.getSize().getQuantity());
+
+    auto cxxDecl = dyn_cast<CXXRecordDecl>(decl);
+
+    if (cxxDecl) {
+
+      J.attributeBegin("supers");
+      J.arrayBegin();
+      for (const CXXBaseSpecifier &Base : cxxDecl->bases()) {
+        const CXXRecordDecl *BaseDecl = Base.getType()->getAsCXXRecordDecl();
+
+        J.objectBegin();
+
+        J.attribute("pretty", getQualifiedName(BaseDecl));
+        J.attribute("sym", getMangledName(CurMangleContext, BaseDecl));
+
+        J.attribute("isVirtual", Base.isVirtual());
+        J.attribute("isClass", Base.isBaseOfClass());
+
+        J.objectEnd();
+      }
+      J.arrayEnd();
+      J.attributeEnd();
+
+      J.attributeBegin("methods");
+      J.arrayBegin();
+      for (const CXXMethodDecl *MethodDecl : cxxDecl->methods()) {
+        J.objectBegin();
+
+        J.attribute("pretty", getQualifiedName(MethodDecl));
+        J.attribute("sym", getMangledName(CurMangleContext, MethodDecl));
+
+        // TODO: Better figure out what to do for non-isUserProvided methods
+        // which means there's potentially semantic data that doesn't correspond
+        // to a source location in the source.  Should we be emitting
+        // structured info for those when we're processing the class here?
+
+        // these 2 should perhaps be more of an enum
+        J.attribute("isStatic", MethodDecl->isStatic());
+        J.attribute("isInstance", MethodDecl->isInstance());
+        J.attribute("isVirtual", MethodDecl->isVirtual());
+        // this would potentially want to perhaps be an enum over this and
+        // isDefaulted() and isExplicitlyDefaulted() and maybe isDeleted()?
+        J.attribute("isUserProvided", MethodDecl->isUserProvided());
+        J.attribute("isDefaulted", MethodDecl->isDefaulted());
+        J.attribute("isDeleted", MethodDecl->isDeleted());
+
+        J.attribute("isConstexpr", MethodDecl->isConstexpr());
+
+        J.objectEnd();
+      }
+      J.arrayEnd();
+      J.attributeEnd();
+    }
 
     J.attributeBegin("fields");
     J.arrayBegin();
@@ -1132,6 +1187,61 @@ public:
     }
     J.arrayEnd();
     J.attributeEnd();
+
+    // End the top-level object.
+    J.objectEnd();
+
+    FileInfo *F = getFileInfo(Loc);
+    // we want a newline.
+    ros << '\n';
+    F->Output.push_back(std::move(ros.str()));
+  }
+
+void emitStructuredInfo(SourceLocation Loc, const FunctionDecl *decl) {
+    std::string json_str;
+    llvm::raw_string_ostream ros(json_str);
+    llvm::json::OStream J(ros);
+    // Start the top-level object.
+    J.objectBegin();
+
+    unsigned StartOffset = SM.getFileOffset(Loc);
+    unsigned EndOffset =
+        StartOffset + Lexer::MeasureTokenLength(Loc, SM, CI.getLangOpts());
+    J.attribute("loc", locationToString(Loc, EndOffset - StartOffset));
+    J.attribute("structured", 1);
+    J.attribute("pretty", getQualifiedName(decl));
+    J.attribute("sym", getMangledName(CurMangleContext, decl));
+
+    auto cxxDecl = dyn_cast<CXXMethodDecl>(decl);
+
+    if (cxxDecl) {
+      J.attribute("kind", "method");
+
+      J.attributeBegin("overrides");
+      J.arrayBegin();
+      for (const CXXMethodDecl *MethodDecl : cxxDecl->overridden_methods()) {
+        J.objectBegin();
+
+        J.attribute("pretty", getQualifiedName(MethodDecl));
+        J.attribute("sym", getMangledName(CurMangleContext, MethodDecl));
+
+        J.objectEnd();
+      }
+      J.arrayEnd();
+      J.attributeEnd();
+
+      J.attribute("isStatic", cxxDecl->isStatic());
+      J.attribute("isInstance", cxxDecl->isInstance());
+      J.attribute("isVirtual", cxxDecl->isVirtual());
+
+      J.attribute("isUserProvided", cxxDecl->isUserProvided());
+    } else {
+      J.attribute("kind", "function");
+    }
+
+    J.attribute("isDefaulted", decl->isDefaulted());
+    J.attribute("isDeleted", decl->isDeleted());
+    J.attribute("isConstexpr", decl->isConstexpr());
 
     // End the top-level object.
     J.objectEnd();
@@ -1458,12 +1568,14 @@ public:
     int Flags = 0;
     const char *Kind = "def";
     const char *PrettyKind = "?";
+    bool wasTemplate = false;
     SourceRange PeekRange(D->getBeginLoc(), D->getEndLoc());
     // The nesting range identifies the left brace and right brace, which
     // heavily depends on the AST node type.
     SourceRange NestingRange;
     if (FunctionDecl *D2 = dyn_cast<FunctionDecl>(D)) {
       if (D2->isTemplateInstantiation()) {
+        wasTemplate = true;
         D = D2->getTemplateInstantiationPattern();
       }
       Kind = D2->isThisDeclarationADefinition() ? "def" : "decl";
@@ -1593,6 +1705,17 @@ public:
           // should be re-evaluated once this is working for normal classes and
           // we can better evaluate what is useful.
           !D2->isDependentType() &&
+          !TemplateStack) {
+        emitStructuredInfo(Loc, D2);
+      }
+    }
+    if (FunctionDecl *D2 = dyn_cast<FunctionDecl>(D)) {
+      if (D2->isThisDeclarationADefinition() &&
+          // a clause at the top should have generalized and set wasTemplate so
+          // it shouldn't be the case that isTemplateInstantiation() is true.
+          !D2->isTemplateInstantiation() &&
+          !wasTemplate &&
+          !D2->isFunctionTemplateSpecialization() &&
           !TemplateStack) {
         emitStructuredInfo(Loc, D2);
       }
