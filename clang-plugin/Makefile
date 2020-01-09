@@ -32,7 +32,7 @@ analyze: build
 	@if [ ! -d analysis ]; then mkdir analysis; fi
 	-mkdir -p $(ANALYSIS_DIR)
 	-$(RM) $(ANALYSIS_DIR)/*
-	-clang++ -c \
+	$(CXX) -c \
 		-Xclang -load                       -Xclang ./libclang-index-plugin.so \
 		-Xclang -add-plugin                 -Xclang mozsearch-index \
 		-Xclang -plugin-arg-mozsearch-index -Xclang testfiles/ \
