@@ -23,9 +23,11 @@ flags = [
 ]
 flags_str = " ".join([ '-Xclang {}'.format(flag) for flag in flags ])
 
+clang_suffix = '-9'
+
 env = {
-    'CC': "clang %s" % flags_str,
-    'CXX': "clang++ %s" % flags_str,
+    'CC': "clang%s %s" % (clang_suffix, flags_str),
+    'CXX': "clang++%s %s" % (clang_suffix, flags_str),
     'RUSTFLAGS': "-Zsave-analysis",
 }
 
