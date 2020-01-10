@@ -219,16 +219,23 @@ export class HierNodeGenerator extends HierBuilder {
       name = sym.computeNameGivenParentSym(parentNode.sym);
     }
 
-    const node = parentNode.getOrCreateKid(name);
+    let instanceGroup = explicitInstanceGroup;
+    if (!instanceGroup && parentNode.instanceGroup) {
+      instanceGroup = parentNode.instanceGroup;
+    }
+
+    // We need to parameterize the hierarchy name by the group, otherwise we'll
+    // coalesce them visually.
+    let hierarchyName = name;
+    if (instanceGroup) {
+      hierarchyName += '__' + instanceGroup.groupName;
+    }
+
+    const node = parentNode.getOrCreateKid(hierarchyName, name);
     node.nodeKind = nodeKind;
     node.semanticKind = semanticKind;
     if (sym) {
       node.updateSym(sym);
-    }
-
-    let instanceGroup = explicitInstanceGroup;
-    if (!instanceGroup && parentNode.instanceGroup) {
-      instanceGroup = parentNode.instanceGroup;
     }
     node.instanceGroup = instanceGroup;
 

@@ -4,8 +4,9 @@ const INDENT = '  ';
  * Helper to cluster dot snippets inside subgraphs.
  */
 export class HierNode {
-  constructor(parent, name, depth) {
-    this.name = name;
+  constructor(parent, hierarchyName, displayName, depth) {
+    this.hierarchyName = hierarchyName;
+    this.displayName = displayName;
     this.depth = depth;
     this.parent = parent;
 
@@ -58,13 +59,13 @@ export class HierNode {
     this.descendantEdgeCount = 0;
   }
 
-  getOrCreateKid(name) {
-    let kid = this.kids.get(name);
+  getOrCreateKid(hierarchyName, displayName) {
+    let kid = this.kids.get(hierarchyName);
     if (kid) {
       return kid;
     }
-    kid = new HierNode(this, name, this.depth + 1);
-    this.kids.set(name, kid);
+    kid = new HierNode(this, hierarchyName, displayName, this.depth + 1);
+    this.kids.set(hierarchyName, kid);
     return kid;
   }
 
@@ -93,9 +94,9 @@ export class HierNode {
    */
   computeLabel() {
     if (this.collapsedAncestors && this.collapsedAncestors.length) {
-      return this.collapsedAncestors.join('::') + '::' + this.name;
+      return this.collapsedAncestors.join('::') + '::' + this.displayName;
     }
-    return this.name;
+    return this.displayName;
   }
 
   computeClusterStyling() {
@@ -164,7 +165,7 @@ export class HierNode {
 // without running into the logic that assumes everything is a symbol.
 export class HierBuilder {
   constructor() {
-    this.root = new HierNode(null, '', 0);
+    this.root = new HierNode(null, '', '', 0);
 
     // default algorithmic settings that will get mutated by any 'setting_algo'
     // block we see.  (And there could be multiple contradictory ones right
