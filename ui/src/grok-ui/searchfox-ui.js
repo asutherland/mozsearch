@@ -17,7 +17,7 @@ import ReactDOM from 'react-dom';
 
 import SessionPopupContainer from
   './components/session_notebook/session_popup_container.jsx';
-import SessionTabbedContainer from
+import { SessionTabbedToolbar, SessionTabbedContainer } from
   './components/session_notebook/session_tabbed_container.jsx';
 
 import KBSymbolViewSheet from './components/sheets/kb_symbol_view.jsx';
@@ -332,11 +332,38 @@ createPopupWidget();
 
 let gSplit;
 /**
- * This converts the
+ * This converts the static page and its layout into a dynamic UI.  In general,
+ * all we care about on each page is the "#scrolling" element which is where the
+ * rendered source lives.
+ *
+ * The current static file hierarchy looks like this:
+ * - body `display: flex; flex-direction: column;`
+ *   - div id="fixed-header"
+ *   - div id="scrolling"
+ *     - div id="content"
+ *
+ * With the new vertical toolbar on the left, we still want this general
+ * structure, but we want it nested under a row-based flexbox that puts the
+ * toolbar on the left.
+ *
  */
 function replaceSearchboxWithOverwhelmingComplexity() {
   const headerElem = document.getElementById('fixed-header');
   const scrollingElem = document.getElementById('scrolling');
+
+  const bodyElem = document.body;
+  const toolboxElem = document.createElement('div');
+  toolboxElem.id = 'toolbox';
+
+  const topLevelBoxElem = document.createElement('div');
+  topLevelBoxElem.id = 'toplevel';
+
+  bodyElem.classList.add('toolbox-inserted');
+  bodyElem.insertBefore(toolboxElem, bodyElem.firstChild);
+  bodyElem.insertBefore(topLevelBoxElem, toolboxElem.nextSibling);
+
+  topLevelBoxElem.appendChild(headerElem);
+  topLevelBoxElem.appendChild(scrollingElem);
 
   // So long, old timey search UI!
   headerElem.textContent = '';
@@ -348,6 +375,14 @@ function replaceSearchboxWithOverwhelmingComplexity() {
   );
 
   ReactDOM.render(headerTags, headerElem);
+
+  const toolbarTags = (
+    <SessionTabbedToolbar
+      grokCtx={ gGrokCtx }
+      trackName="top" />
+  );
+
+  ReactDOM.render(toolbarTags, toolboxElem);
 
   // Setup the split.
   gSplit = Split(

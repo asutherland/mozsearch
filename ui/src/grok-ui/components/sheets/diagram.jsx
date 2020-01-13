@@ -33,6 +33,7 @@ export class DiagramModel {
 }
 
 export let DiagramSheetBinding = {
+  icon: 'pencil',
   slotName: 'diagram',
   spawnable: 'Diagram',
   makeModel(sessionThing, persisted) {

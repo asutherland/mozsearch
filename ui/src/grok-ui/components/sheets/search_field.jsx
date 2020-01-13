@@ -54,6 +54,7 @@ export class SearchFieldModel {
 }
 
 export let SearchFieldBinding = {
+  icon: 'search',
   spawnable: 'Search',
   makeModel(/*sessionThing, persisted */) {
     // The model needs to exist and have a destroy method right now.  But it's

@@ -39,6 +39,7 @@ export class SearchResultsModel {
 }
 
 export let SearchResultsBinding = {
+  icon: 'search',
   spawnable: 'Search Results',
   makeModel(sessionThing, persisted) {
     return new SearchResultsModel(persisted);

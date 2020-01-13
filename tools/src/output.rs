@@ -238,7 +238,7 @@ pub fn generate_header(opt: &Options, writer: &mut dyn Write) -> Result<(), &'st
             F::S("</div>"),
             F::S(r#"<div id="scrolling">"#),
             F::T(format!(
-                r#"<div id="content" class="content {}" data-no-results="No results for current query.">"#,
+                r#"<div id="content" class="mozsearch-content {}" data-no-results="No results for current query.">"#,
                 opt.extra_content_classes
             )),
         ]),

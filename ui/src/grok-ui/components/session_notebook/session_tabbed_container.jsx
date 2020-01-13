@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { Label, Menu, Input, Tab, Dropdown } from 'semantic-ui-react';
+import { Button, Dropdown, Popup } from 'semantic-ui-react';
 
 import DirtyingComponent from '../dirtying_component.js';
 
@@ -18,18 +18,12 @@ import './session_tabbed_container.css';
  * - grokCtx
  * - trackName
  */
-export default class SessionTabbedContainer extends DirtyingComponent {
+export class SessionTabbedToolbar extends DirtyingComponent {
   constructor(props) {
     // the notebook is characterized by the track.  The function is only invoked
     // after the constructor completes, so it's okay to access our convenience
     // variable initialized below.
     super(props, function () { return this.track; });
-
-    this.passProps = {
-      grokCtx: this.props.grokCtx
-    };
-
-    this.searchInputRef = React.createRef();
 
     this.sessionManager = this.props.grokCtx.sessionManager;
     this.track = this.sessionManager.tracks[this.props.trackName];
@@ -37,27 +31,28 @@ export default class SessionTabbedContainer extends DirtyingComponent {
 
   render() {
     const activeThing = this.track.computeTabbedThingToDisplay();
-    const activeWidget = activeThing && activeThing.makeWidget();
 
-    let inactiveWidget = null;
-    const inactiveThing = this.track.computeTabbedOccludedThing();
-    if (inactiveThing) {
-      inactiveWidget = inactiveThing.makeWidget();
-    }
-
-    const tabMenuItems = this.track.things.map((thing) => {
+    const tabButtons = this.track.things.map((thing) => {
       const selectThisThing = () => {
         this.track.selectThing(thing);
       };
-      const menuItem = (
-        <Menu.Item
-          active={ thing === activeThing }
-          onClick={ selectThisThing }
-          >
-          { thing.makeLabel() }
-        </Menu.Item>
+      return (
+        <Popup
+          key={ thing.id }
+          content={ thing.makeLabel() }
+          mouseEnterDelay={250}
+          position='right center'
+          on='hover'
+          size='large'
+          trigger={
+            <Button
+              icon={ thing.binding.icon }
+              active={ thing === activeThing }
+              onClick={ selectThisThing }
+              />
+          }
+          />
       );
-      return menuItem;
     });
 
     const addDropdownItems = this.sessionManager.userSpawnables.map(
@@ -80,50 +75,50 @@ export default class SessionTabbedContainer extends DirtyingComponent {
         );
       });
 
+    return (
+      <div className="sessionTabbedToolbar">
+        <Button.Group vertical>
+          { tabButtons }
+        </Button.Group>
+        &nbsp;
+        <Dropdown
+          trigger={<Button style={{ 'margin-right': 0 }} icon='plus' />}
+          icon={ null }
+          >
+          <Dropdown.Menu>
+            { addDropdownItems }
+          </Dropdown.Menu>
+        </Dropdown>
+      </div>
+    );
+  }
+}
 
-    let maybeSearchWidget;
-    const trackSettings = this.track.trackSettings;
-    if (trackSettings && trackSettings.populateSearchAddThingArgs) {
-      const handleSearchSubmit = () => {
-        const str = this.searchInputRef.current.value;
-        this.track.addThing(trackSettings.populateSearchAddThingArgs(str));
-      };
+export class SessionTabbedContainer extends DirtyingComponent {
+  constructor(props) {
+    // the notebook is characterized by the track.  The function is only invoked
+    // after the constructor completes, so it's okay to access our convenience
+    // variable initialized below.
+    super(props, function () { return this.track; });
 
-      maybeSearchWidget = (
-        <Menu.Item>
-          <form onSubmit={ handleSearchSubmit }>
-            <Input
-              action={{ icon: 'search' }}
-              ref={ this.searchInputRef }
-              placeholder='Search...'
-              />
-          </form>
-        </Menu.Item>
-      );
+    this.sessionManager = this.props.grokCtx.sessionManager;
+    this.track = this.sessionManager.tracks[this.props.trackName];
+  }
+
+  render() {
+    const activeThing = this.track.computeTabbedThingToDisplay();
+    const activeWidget = activeThing && activeThing.makeWidget();
+
+    let inactiveWidget = null;
+    const inactiveThing = this.track.computeTabbedOccludedThing();
+    if (inactiveThing) {
+      inactiveWidget = inactiveThing.makeWidget();
     }
 
     return (
-      <div className="sessionTabbedContainer sessionTabbedContaienr_horiz">
-        <div className="sessionTabbedContainer_tabs">
+      <div className="sessionTabbedContainer_tabs">
           { activeWidget }
           { inactiveWidget }
-        </div>
-        <Menu vertical className="sessionTabbedContainer_menu">
-          { maybeSearchWidget }
-
-          <Menu.Item>
-            Tabs
-            <Menu.Menu>
-            { tabMenuItems }
-            </Menu.Menu>
-          </Menu.Item>
-
-          <Dropdown item text='Add tab...'>
-            <Dropdown.Menu direction='left'>
-              { addDropdownItems }
-            </Dropdown.Menu>
-          </Dropdown>
-        </Menu>
       </div>
     );
   }

@@ -68,7 +68,7 @@ body {
   z-index: 200 !important;
 }
 /* reassert our font declaration to override semantic-ui */
-div.content {
+div#content {
   font: 12px/1.5 Arial, Helvetica, sans-serif;
 }
 h4 {
@@ -233,6 +233,21 @@ html {
 body {
   height: 100%;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+body.toolbox-inserted {
+  flex-direction: row;
+}
+
+#toolbox {
+  flex-shrink: 0;
+  padding: 2px;
+  border-right: 1px solid black;
+}
+
+#toplevel {
+  flex-grow: 1;
   display: flex;
   flex-direction: column;
 }
@@ -464,10 +479,10 @@ body {
   padding: 3px;
 }
 
-.content {
+#content {
     padding: 1rem 2rem;
 }
-.content.source-listing {
+#content.source-listing {
     padding: 0.5rem 0rem;
 }
 

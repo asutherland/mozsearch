@@ -179,6 +179,7 @@ export class BlocklyDiagramEditorModel {
 }
 
 export let BlocklyDiagramEditorBinding = {
+  icon: 'paint brush',
   spawnable: 'Blockly Diagram',
   makeModel(sessionThing, persisted) {
     const diagram =
