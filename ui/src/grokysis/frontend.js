@@ -123,15 +123,31 @@ class GrokAnalysisFrontend {
 
   //////////////////////////////////////////////////////////////////////////////
   // Searchfox / grokysis stuff
-  async performSearch(searchStr) {
+
+  /**
+   * Perform a search, immediately returning a FilteredResults instance that
+   * will dirty itself once results have been received.
+   */
+  performSyncSearch(searchStr) {
+    const filtered = new FilteredResults({ rawResultsList: [] });
+    this._performAsyncSearch(searchStr, filtered);
+    return filtered;
+  }
+
+  async performAsyncSearch(searchStr) {
+    const filtered = new FilteredResults({ rawResultsList: [] });
+    await this._performAsyncSearch(searchStr, filtered);
+    return filtered;
+  }
+
+  async _performAsyncSearch(searchStr, filtered) {
     const wireResults = await this._sendAndAwaitReply(
       "search",
       {
         searchStr
       });
     const rawResults = new RawSearchResults(wireResults);
-    const filtered = new FilteredResults({ rawResultsList: [rawResults] });
-    return filtered;
+    filtered.addRawResults(rawResults);
   }
 
   /**

@@ -24,6 +24,7 @@ import KBSymbolViewSheet from './components/sheets/kb_symbol_view.jsx';
 import { DiagramSheetBinding } from './components/sheets/diagram.jsx';
 import { BlocklyDiagramEditorBinding } from './components/sheets/blockly_diagram_editor.jsx';
 import { SearchFieldBinding } from './components/sheets/search_field.jsx';
+import { SearchResultsBinding } from './components/sheets/search_results.jsx';
 
 import KBSymbolInfoPopup from './components/popups/kb_symbol_info.jsx';
 
@@ -54,6 +55,20 @@ function makeGrokContext() {
           }
         ],
         source: []
+      },
+
+      perTrackSettings: {
+        top: {
+          populateSearchAddThingArgs: (searchText) => {
+            return {
+              type: 'searchResult',
+              position: 'after',
+              persisted: {
+                searchText
+              },
+            };
+          }
+        }
       },
 
       popupBindings: {

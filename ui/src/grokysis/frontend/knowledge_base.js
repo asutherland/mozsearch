@@ -152,7 +152,7 @@ export default class KnowledgeBase {
     }
 
     const filteredResults =
-      await this.grokCtx.performSearch(`id:${id}`);
+      await this.grokCtx.performAsyncSearch(`id:${id}`);
 
     const raw = filteredResults.rawResultsList[0].raw;
 
@@ -491,7 +491,7 @@ export default class KnowledgeBase {
   async _analyzeSymbol(symInfo, analyzeHopsInclusive) {
     // Perform the raw Searchfox search.
     const filteredResults =
-      await this.grokCtx.performSearch(`symbol:${symInfo.rawName}`);
+      await this.grokCtx.performAsyncSearch(`symbol:${symInfo.rawName}`);
 
     const raw = filteredResults.rawResultsList[0].raw;
 

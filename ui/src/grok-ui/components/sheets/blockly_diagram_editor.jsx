@@ -197,6 +197,7 @@ export let BlocklyDiagramEditorBinding = {
   makeWidgetForModel(sessionThing, model) {
     return (
       <BlocklyDiagramEditorSheet
+        key={ sessionThing.id }
         sessionThing={ model.sessionThing }
         model={ model }
         />

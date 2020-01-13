@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { Label, Menu, Tab, Dropdown } from 'semantic-ui-react';
+import { Label, Menu, Input, Tab, Dropdown } from 'semantic-ui-react';
 
 import DirtyingComponent from '../dirtying_component.js';
 
@@ -29,73 +29,102 @@ export default class SessionTabbedContainer extends DirtyingComponent {
       grokCtx: this.props.grokCtx
     };
 
+    this.searchInputRef = React.createRef();
+
     this.sessionManager = this.props.grokCtx.sessionManager;
     this.track = this.sessionManager.tracks[this.props.trackName];
   }
 
   render() {
-    const panes = this.track.things.map((thing) => {
-      const closeThisThing = () => {
-        thing.removeSelf();
+    const activeThing = this.track.computeTabbedThingToDisplay();
+    const activeWidget = activeThing && activeThing.makeWidget();
+
+    let inactiveWidget = null;
+    const inactiveThing = this.track.computeTabbedOccludedThing();
+    if (inactiveThing) {
+      inactiveWidget = inactiveThing.makeWidget();
+    }
+
+    const tabMenuItems = this.track.things.map((thing) => {
+      const selectThisThing = () => {
+        this.track.selectThing(thing);
       };
       const menuItem = (
-        <Menu.Item>
+        <Menu.Item
+          active={ thing === activeThing }
+          onClick={ selectThisThing }
+          >
           { thing.makeLabel() }
-          <Label
-            onClick={ closeThisThing }
-            >x</Label>
         </Menu.Item>
       );
-      return {
-        menuItem,
-        render: () => {
-          return thing.makeWidget();
-        }
-      };
+      return menuItem;
     });
 
     const addDropdownItems = this.sessionManager.userSpawnables.map(
       ({ type, binding }) => {
-        return {
-          key: binding.spawnable,
-          text: binding.spawnable,
-          value: type
+        const spawnThisTab = () => {
+          this.track.addThing(
+            null, null,
+            {
+              position: 'start',
+              type,
+              persisted: {}
+            });
         };
+        return (
+          <Dropdown.Item
+            key={ type }
+            text={ binding.spawnable }
+            onClick={ spawnThisTab }
+          />
+        );
       });
 
-    const spawnClicked = (evt, data) => {
-      this.track.addThing(
-        null, null,
-        {
-          position: 'start',
-          type: data.value,
-          persisted: {}
-        });
-    };
+
+    let maybeSearchWidget;
+    const trackSettings = this.track.trackSettings;
+    if (trackSettings && trackSettings.populateSearchAddThingArgs) {
+      const handleSearchSubmit = () => {
+        const str = this.searchInputRef.current.value;
+        this.track.addThing(trackSettings.populateSearchAddThingArgs(str));
+      };
+
+      maybeSearchWidget = (
+        <Menu.Item>
+          <form onSubmit={ handleSearchSubmit }>
+            <Input
+              action={{ icon: 'search' }}
+              ref={ this.searchInputRef }
+              placeholder='Search...'
+              />
+          </form>
+        </Menu.Item>
+      );
+    }
 
     return (
-      <React.Fragment>
-        <div className="sessionTabbedContainer">
-          <Tab className="sessionTabbedContainer_tabContainer"
-            panes={panes}
-            menu={{ attached: true, vertical: true, tabular: true }}
-            menuPosition="right"
-            grid={{ paneWidth: 14, tabWidth: 2 }}
-            flud={true}
-            />
+      <div className="sessionTabbedContainer sessionTabbedContaienr_horiz">
+        <div className="sessionTabbedContainer_tabs">
+          { activeWidget }
+          { inactiveWidget }
         </div>
-        <div className="sessionTabbedContainer_spawnButton">
-        <Dropdown className="icon"
-          button
-          floating
-          labeled
-          icon='plus'
-          text='Add Tab'
-          onChange={ spawnClicked }
-          options={ addDropdownItems }
-          />
-        </div>
-      </React.Fragment>
+        <Menu vertical className="sessionTabbedContainer_menu">
+          { maybeSearchWidget }
+
+          <Menu.Item>
+            Tabs
+            <Menu.Menu>
+            { tabMenuItems }
+            </Menu.Menu>
+          </Menu.Item>
+
+          <Dropdown item text='Add tab...'>
+            <Dropdown.Menu direction='left'>
+              { addDropdownItems }
+            </Dropdown.Menu>
+          </Dropdown>
+        </Menu>
+      </div>
     );
   }
 }

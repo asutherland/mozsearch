@@ -10,12 +10,28 @@ import SessionThing from './session_thing.js';
  * bound to by an independently stateful widget.
  */
 export default class SessionTrack extends EE {
-  constructor(manager, name) {
+  constructor(manager, name, trackSettings) {
     super();
 
     this.manager = manager;
     this.name = name;
+    this.trackSettings = trackSettings;
+    
     this.things = [];
+
+    /**
+     * Some tracks may be presented as a tabbed UI.  If that's the case, this is
+     * the explicitly-selected-by-the-user current tab.  This may also be used
+     * in multi-displays like the notebook to convey what the most recently
+     * active thing/sheet was.
+     */
+    this.selectedThing = null;
+    /**
+     * In the tabbed case, we may repurpose the tabbed display to temporarily
+     * switch to another tab for the purposes of displaying information on
+     * something the user has hovered over.  In that case, th
+     */
+    this.temporarilySelectedThing = null;
 
     this.serial = 0;
   }
@@ -33,6 +49,63 @@ export default class SessionTrack extends EE {
         this.updatePersistedState(thing, thing.persisted, thing.sessionMeta);
       }
     }
+  }
+
+  /**
+   * Consider `selectedThing` and `temporarilySelectedThing` to figure out what
+   * to display when operating in a tabbed mode.
+   */
+  computeTabbedThingToDisplay() {
+    let thing = this.temporarilySelectedThing || this.selectedThing;
+    if (!thing && this.things.length) {
+      this.selectedThing = this.things[0];
+    }
+    return thing;
+  }
+
+  /**
+   * If there's a temporarilySelectedThing and a selectedThing, there's a
+   * near certainty that we'll want to re-render the selectedThing in the near
+   * future, so expose it here so the container can keep it around.
+   */
+  computeTabbedOccludedThing() {
+    if (this.temporarilySelectedThing && this.selectedThing) {
+      return this.selectedThing;
+    }
+    return null;
+  }
+
+  /**
+   * Explicitly select the given thing in this track to be the `selectedThing`,
+   * dirtying the track to cause a re-render, plus persisting the state change.
+   */
+  selectThing(thing) {
+    if (this.selectedThing === thing) {
+      return;
+    }
+    if (this.selectedThing) {
+      const oldThing = this.selectedThing;
+      oldThing.sessionMeta.selected = false;
+      oldThing.storeUpdatedSessionMeta();
+    }
+    this.selectedThing = thing;
+    thing.sessionMeta.selected = true;
+    thing.storeUpdatedSessionMeta();
+
+    this.serial++;
+    this.emit('dirty', this);
+  }
+
+  /**
+   * Set/un-set a temporarily selected thing that will supersede the explicitly
+   * selected thing until this method is invoked again with null.  Used for
+   * hover-brushing contextual info.
+   */
+  temporarilySelectThing(thing) {
+    this.temporarilySelectedThing = thing;
+
+    this.serial++;
+    this.emit('dirty', this);
   }
 
   /**
@@ -99,6 +172,10 @@ export default class SessionTrack extends EE {
 
     if (orderingChange) {
       this._updatePersistedThingsBecauseOfOrderingChange();
+    }
+
+    if (thing.sessionMeta.selected) {
+      this.selectedThing = thing;
     }
 
     this.manager.sessionThingAdded(thing);

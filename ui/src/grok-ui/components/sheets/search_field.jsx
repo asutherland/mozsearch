@@ -71,6 +71,7 @@ export let SearchFieldBinding = {
   makeWidgetForModel(sessionThing/*, model */) {
     return (
       <SearchFieldSheet
+        key={ sessionThing.id }
         sessionThing={ sessionThing }
         initialValue={ sessionThing.persisted.initialValue }
         />

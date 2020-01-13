@@ -64,8 +64,8 @@ import SessionPopupManager from './session_popup_manager.js';
  *     If true, the sheet shouldn't be removable.
  */
 export default class SessionManager extends EE {
-  constructor({ name, tracks, defaults, popupBindings, sheetBindings }, grokCtx,
-              persistToDB, deleteFromDB) {
+  constructor({ name, tracks, defaults, popupBindings, sheetBindings, perTrackSettings },
+              grokCtx, persistToDB, deleteFromDB) {
     super();
 
     this.name = name;
@@ -98,7 +98,8 @@ export default class SessionManager extends EE {
     this.tracks = {};
     this.tracksByIndex = [];
     for (const trackName of this.trackNames) {
-      const track = new SessionTrack(this, trackName);
+      const trackSettings = perTrackSettings[trackName];
+      const track = new SessionTrack(this, trackName, trackSettings);
       this.tracks[trackName] = track;
       this.tracksByIndex.push(track);
     }

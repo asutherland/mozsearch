@@ -59,6 +59,13 @@ export default class FilteredResults extends EE {
     this._fullRebuild();
   }
 
+  addRawResults(rawResults) {
+    this.rawResultsList.push(rawResults);
+    
+    this.serial++;
+    this.emit('dirty');
+  }
+
   /**
    *
    */

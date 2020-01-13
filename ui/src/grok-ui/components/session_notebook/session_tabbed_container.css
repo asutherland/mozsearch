@@ -2,35 +2,44 @@
   width: 100%;
   padding: 0.6rem;
   overflow: hidden;
+  display: flex;
+}
+.sessionTabbedContainer_horiz {
+  flex-direction: row;
 }
 
-/* Begin high qwalitee CSS
- *
- * The current expectation is that this tabbed UI has the tabs on the right and
- * its vertical space is decided by a splitter.  If I was creating the tab
- * stuff from scratch, I'd just use flexbox.  But the react semantic UI is using
- * a grid here for some reason that I haven't looked into.  So we're just going
- * to force the CSS that's part of the tab infrastructure to be 100%.
- *
- * It's on the contents of the tabs to handle things from there, preferably with
- * flexbox.
+/*
+ * Holds the active tab to display, plus the inactive tab that we want to stay
+ * in the DOM but not be displayed for performance reasons.  (Our tab content
+ * may include a blockly editor which does not have cheap setup costs.)
  */
-.sessionTabbedContainer_tabContainer,
-.sessionTabbedContainer_tabContainer > div,
-.sessionTabbedContainer_tabContainer > .ui.grid,
-.sessionTabbedContainer_tabContainer > .ui.grid > .wide.column {
-  height: 100%;
+.sessionTabbedContainer_tabs {
+  flex-grow: 1;
+  position: relative;
 }
-
-/* This padding is not helpful in this case. There's probably a way to turn this
- * off that's smarter... */
-.sessionTabbedContainer_tabContainer > .ui.grid > .wide.column {
-  padding: none !important;
+.sessionTabbedContainer_tabs > :nth-child(1) {
 }
-
-.sessionTabbedContainer_spawnButton {
-  /* we get absolutely positioned in the lower right of the tabbed display */
+/*
+ * The inactive widget wants to exist in the DOM for performance but but doesn't
+ * want to be visible.  We leave the active widget in flow but we make the
+ * inactive widget absolute so that only the active widget is considered for
+ * layout in the available space.
+ */
+.sessionTabbedContainer_tabs > :nth-child(2) {
   position: absolute;
-  right: 1em;
-  bottom: 1em;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  visibility: none;
+  overflow: hidden;
+}
+
+.sessionTabbedContainer_menu {
+  flex-shrink: 0;
+  /* semantic sets this to 15rem which is too small for the search input box.
+     Setting this to fluid makes this attempt to be as large as its container,
+     but we want its automatic size.  Setting this to fixed uses position:fixed
+     which is not what we want for layout purposes. */
+  width: auto !important;
 }
