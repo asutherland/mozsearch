@@ -78,8 +78,16 @@ export class BlocklyDiagramEditorSheet extends React.Component {
       },
       'new_class_variable': (button) => {
         const workspace = button.getTargetWorkspace();
-        Blockly.Variables.createVariable(workspace, null, 'identifier');
-      }
+        Blockly.Variables.createVariable(workspace, null, 'id-class');
+      },
+      'new_method_variable': (button) => {
+        const workspace = button.getTargetWorkspace();
+        Blockly.Variables.createVariable(workspace, null, 'id-method');
+      },
+      'new_field_variable': (button) => {
+        const workspace = button.getTargetWorkspace();
+        Blockly.Variables.createVariable(workspace, null, 'id-field');
+      },
     };
 
     return (
@@ -104,12 +112,27 @@ export class BlocklyDiagramEditorSheet extends React.Component {
           </Category>
           <Category name="Classes">
             <Button
-              text="New Class / Method Reference"
+              text="New Class Reference"
               callbackKey="new_class_variable"
               />
             <Block type="node_class" />
+            <Block type="edge_use" />
+          </Category>
+          <Category name="Methods">
+            <Button
+              text="New Method Reference"
+              callbackKey="new_method_variable"
+              />
             <Block type="node_method" />
             <Block type="edge_call" />
+          </Category>
+          <Category name="Fields">
+            <Button
+              text="New Field Reference"
+              callbackKey="new_field_variable"
+              />
+            <Block type="node_field" />
+            <Block type="edge_ref" />
           </Category>
           <Category name="Settings">
             <Block type="diagram_settings" />

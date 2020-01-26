@@ -294,8 +294,8 @@ const node_class_def = {
       "type": "field_variable",
       "name": "NAME",
       "variable": null,
-      "variableTypes": ["identifier"],
-      "defaultType": "identifier"
+      "variableTypes": ["id-class"],
+      "defaultType": "id-class"
     },
     {
       "type": "input_value",
@@ -321,16 +321,53 @@ Blockly.Blocks['node_class'] = {
   }
 };
 
-const edge_call_def = {
-  "type": "edge_call",
-  "message0": "Calls %1 %2",
+const edge_use_def = {
+  "type": "edge_use",
+  "message0": "Uses %1 %2",
   "args0": [
     {
       "type": "field_variable",
       "name": "CALLS_WHAT",
       "variable": null,
-      "variableTypes": ["identifier"],
-      "defaultType": "identifier"
+      "variableTypes": ["id-class"],
+      "defaultType": "id-class"
+    },
+    {
+      "type": "input_value",
+      "name": "INSTANCE",
+      "check": "instance"
+    }
+  ],
+  "inputsInline": false,
+  "previousStatement": "methorcall",
+  "nextStatement": "methorcall",
+  "colour": 280,
+  "tooltip": "",
+  "helpUrl": ""
+};
+Blockly.Blocks['edge_use'] = {
+  init() {
+    this.jsonInit(edge_use_def);
+  }
+};
+
+const edge_call_def = {
+  "type": "edge_call",
+  "message0": "Calls %1::%2 %3",
+  "args0": [
+    {
+      "type": "field_variable",
+      "name": "CALLS_CLASS",
+      "variable": null,
+      "variableTypes": ["id-class"],
+      "defaultType": "id-class"
+    },
+    {
+      "type": "field_variable",
+      "name": "CALLS_METHOD",
+      "variable": null,
+      "variableTypes": ["id-method"],
+      "defaultType": "id-method"
     },
     {
       "type": "input_value",
@@ -351,6 +388,54 @@ Blockly.Blocks['edge_call'] = {
   }
 };
 
+const edge_ref_def = {
+  "type": "edge_ref",
+  "message0": "%1 ref to %2 %3",
+  "args0": [
+    {
+      "type": "field_dropdown",
+      "name": "STRENGTH",
+      "options": [
+        [
+          "Strong",
+          "STRONG"
+        ],
+        [
+          "Weak",
+          "WEAK"
+        ],
+        [
+          "Raw",
+          "RAW"
+        ]
+      ]
+    },
+    {
+      "type": "field_variable",
+      "name": "CALLS_WHAT",
+      "variable": null,
+      "variableTypes": ["id-class"],
+      "defaultType": "id-class"
+    },
+    {
+      "type": "input_value",
+      "name": "INSTANCE",
+      "check": "instance"
+    }
+  ],
+  "inputsInline": false,
+  "previousStatement": "methorcall",
+  "nextStatement": "methorcall",
+  "colour": 270,
+  "tooltip": "",
+  "helpUrl": ""
+};
+Blockly.Blocks['edge_ref'] = {
+  init() {
+    this.jsonInit(edge_ref_def);
+  }
+};
+
 const node_method_def = {
   "type": "node_method",
   "message0": "Method %1 %2 %3",
@@ -359,8 +444,8 @@ const node_method_def = {
       "type": "field_variable",
       "name": "NAME",
       "variable": null,
-      "variableTypes": ["identifier"],
-      "defaultType": "identifier"
+      "variableTypes": ["id-method"],
+      "defaultType": "id-method"
     },
     {
       "type": "input_value",
@@ -383,6 +468,41 @@ const node_method_def = {
 Blockly.Blocks['node_method'] = {
   init() {
     this.jsonInit(node_method_def);
+  }
+};
+
+const node_field_def = {
+  "type": "node_field",
+  "message0": "Field %1 %2 %3",
+  "args0": [
+    {
+      "type": "field_variable",
+      "name": "NAME",
+      "variable": null,
+      "variableTypes": ["id-field"],
+      "defaultType": "id-field"
+    },
+    {
+      "type": "input_value",
+      "name": "INSTANCE",
+      "check": "instance"
+    },
+    {
+      "type": "input_statement",
+      "name": "METHODS",
+      "check": "methorcall"
+    }
+  ],
+  "inputsInline": false,
+  "previousStatement": "methorcall",
+  "nextStatement": "methorcall",
+  "colour": 180,
+  "tooltip": "",
+  "helpUrl": ""
+};
+Blockly.Blocks['node_field'] = {
+  init() {
+    this.jsonInit(node_field_def);
   }
 };
 

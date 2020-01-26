@@ -75,20 +75,69 @@ export class SessionTabbedToolbar extends DirtyingComponent {
         );
       });
 
+    const closeCurrentThing = () => {
+      if (activeThing) {
+        activeThing.removeSelf();
+      }
+    };
+
+    let canClose = activeThing && !activeThing.binding.permanent;
+
+    // The Dropdown popups below for the add tab/close tab don't use
+    // <Dropdown button> and instead wrap a Button explicitly via trigger
+    // because otherwise they get styled like there's going to be some kind
+    // of attached label to the right.  I didn't spend a lot of time on this
+    // and mainly was cargo culting an example that already had the right
+    // styling.  They also don't do the right thing in a Button.Group because of
+    // this, so they end up as independent button things.
+    //
+    //
     return (
       <div className="sessionTabbedToolbar">
         <Button.Group vertical>
           { tabButtons }
         </Button.Group>
         &nbsp;
-        <Dropdown
-          trigger={<Button style={{ 'margin-right': 0 }} icon='plus' />}
-          icon={ null }
-          >
-          <Dropdown.Menu>
-            { addDropdownItems }
-          </Dropdown.Menu>
-        </Dropdown>
+          <Popup
+            content='Add New Tab'
+            position='right center'
+            mouseEnterDelay={250}
+            on='hover'
+            size='large'
+            trigger={
+              <Dropdown
+                trigger={<Button style={{ 'margin-right': 0 }} icon='plus' />}
+                icon={ null }
+                >
+                <Dropdown.Menu>
+                  { addDropdownItems }
+                </Dropdown.Menu>
+              </Dropdown>
+            }
+            />
+          <Popup
+            content={ canClose ? 'Close Current Tab' : 'Current tab not allowed to be closed.' }
+            position='right center'
+            mouseEnterDelay={250}
+            on='hover'
+            size='large'
+            trigger={
+              <Dropdown
+                trigger={<Button style={{ 'margin-right': 0 }} icon='close' />}
+                direction='right'
+                disabled={ !canClose }
+                icon={ null }
+                >
+                <Dropdown.Menu>
+                  <Dropdown.Item
+                    key='close'
+                    text='Yes, Close The Tab'
+                    onClick={ closeCurrentThing }
+                    />
+                </Dropdown.Menu>
+              </Dropdown>
+            }
+            />
       </div>
     );
   }

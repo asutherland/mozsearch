@@ -299,7 +299,7 @@ export class HierBuilder {
       wrapEnd = indentStr + '}\n';
     } else if (node.action === 'table') {
       s += indentStr + `${node.id} [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="4">\n`;
-      kidIndent += INDENT;
+      kidIndent += INDENT ;
       s += kidIndent + `<tr><td href="${node.id}" port="${node.id}s0" ${node.computeTableStyling()}><B>${node.computeLabel()}</B></td></tr>\n`;
       wrapEnd = indentStr + `</table>>];\n`;
     } else if (node.action === 'record') {
@@ -322,14 +322,14 @@ export class HierBuilder {
     // a million unused newlines.
     if (node.edges && node.edges.length) {
       s += '\n';
-      for (const { from, to } of node.edges) {
+      for (const { from, to, style } of node.edges) {
         // HACK: Don't expose edges to the root node.
         // This is a scenario that happens when clicking on a class Type because
         // all of the members end up referring to the Type itself.
         if (!from.edgeOutId || !to.edgeInId) {
           continue;
         }
-        s += kidIndent + from.edgeOutId + ' -> ' + to.edgeInId + ';\n';
+        s += kidIndent + from.edgeOutId + ' -> ' + to.edgeInId + ` [style="${style}"];\n`;
       }
     }
 

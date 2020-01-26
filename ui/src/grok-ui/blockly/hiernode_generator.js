@@ -130,12 +130,19 @@ export class HierNodeGenerator extends HierBuilder {
     this.varMap = null;
   }
 
+  /**
+   * Helper for phase 1 identifier resolution.
+   */
+  _lookupIdentifier() {
+
+  }
+
   async generate({ workspace }) {
     const kb = this.kb;
 
-    // ## Phase 0: Resolve variables to symbols
-    // We only want variables that are actually used in the diagram.  It's
-    // possible for there to be leftover cruft.
+    // ## Phase 0: Learn about Instance Groups
+    // Previously we also extracted identifiers here, but we now do that in
+    // phase 1.
     const blVariables = Blockly.Variables.allUsedVarModels(workspace);
     this.varMap = workspace.getVariableMap();
     const idToSym = this.idToSym = new Map();
@@ -167,7 +174,10 @@ export class HierNodeGenerator extends HierBuilder {
     // side-effects to `varToSym` have happened already.
     await Promise.all(idPromises);
 
-    // ## Phase 1 Traversal: Process Settings
+    // ## Phase 1 Traversal: Process Settings and Extract Identifiers.
+    // The blockly diagram inherently has hierarchy that allows us to infer
+    // qualified identifiers.  So rather than exclusively using the variable
+    // names,
     const topBlocks = workspace.getTopBlocks(true);
     for (const topBlock of topBlocks) {
       for (const block of iterBlockAndSuccessors(topBlock)) {
@@ -203,13 +213,16 @@ export class HierNodeGenerator extends HierBuilder {
     };
   }
 
-  _makeNode(parentNode, name, nodeKind, semanticKind, explicitInstanceGroup,
-            identifier) {
+  _makeNode(srcBlock, parentNode, name, nodeKind, semanticKind,
+            explicitInstanceGroup, identifier) {
     let sym;
     if (identifier) {
       sym = this.idToSym.get(identifier) || null;
       if (!sym) {
+        srcBlock.setDisabled(true);
         console.warn('failed to resolve id', identifier);
+      } else {
+        srcBlock.setDisabled(false);
       }
     }
     // Make the name relative to the parent node so that when a method is
@@ -346,13 +359,13 @@ export class HierNodeGenerator extends HierBuilder {
 
       case 'cluster_process': {
         node = this._makeNode(
-          parentNode, block.getFieldValue('NAME'), 'group', 'process');
+          block, parentNode, block.getFieldValue('NAME'), 'group', 'process');
         iterKids = iterBlockAndSuccessors(block.getInputTargetBlock('CHILDREN'));
         break;
       }
       case 'cluster_thread': {
         node = this._makeNode(
-          parentNode, block.getFieldValue('NAME'), 'group', 'thread');
+          block, parentNode, block.getFieldValue('NAME'), 'group', 'thread');
         iterKids = iterBlockAndSuccessors(block.getInputTargetBlock('CHILDREN'));
         break;
       }
@@ -363,7 +376,7 @@ export class HierNodeGenerator extends HierBuilder {
         // For now we fold the client kind into the name
         const name = `${kindInitialCaps} ${clientName}`;
         node = this._makeNode(
-          parentNode, name, 'group', kindInitialCaps.toLowerCase(),
+          block, parentNode, name, 'group', kindInitialCaps.toLowerCase(),
           this._extractInstanceGroup(block.getInputTargetBlock('INSTANCE')),
           null);
         iterKids = iterBlockAndSuccessors(block.getInputTargetBlock('CHILDREN'));
@@ -375,7 +388,7 @@ export class HierNodeGenerator extends HierBuilder {
         const className = classVar.name;
 
         node = this._makeNode(
-          parentNode, className, 'node', 'class',
+          block, parentNode, className, 'node', 'class',
           this._extractInstanceGroup(block.getInputTargetBlock('INSTANCE')),
           className);
         iterKids = iterBlockAndSuccessors(block.getInputTargetBlock('METHODS'));
@@ -388,19 +401,29 @@ export class HierNodeGenerator extends HierBuilder {
         const methodName = methodVar.name;
 
         node = this._makeNode(
-          parentNode, methodName, 'node', 'method',
+          block, parentNode, methodName, 'node', 'method',
           this._extractInstanceGroup(block.getInputTargetBlock('INSTANCE')),
           methodName);
         iterKids = iterBlockAndSuccessors(block.getInputTargetBlock('METHODS'));
         break;
       }
 
-      case 'edge_call': {
-        deferredBlocks.push([block, parentNode]);
+      case 'node_field': {
+        // this is largely the same as the method case above.
+        const fieldVar = this.varMap.getVariableById(block.getFieldValue('NAME'));
+        const fieldName = fieldVar.name;
+
+        node = this._makeNode(
+          block, parentNode, fieldName, 'node', 'field',
+          this._extractInstanceGroup(block.getInputTargetBlock('INSTANCE')),
+          fieldName);
+        iterKids = iterBlockAndSuccessors(block.getInputTargetBlock('METHODS'));
         break;
       }
 
-      case 'edge_instance_call': {
+      case 'edge_use':
+      case 'edge_call':
+      case 'edge_ref': {
         deferredBlocks.push([block, parentNode]);
         break;
       }
@@ -431,8 +454,23 @@ export class HierNodeGenerator extends HierBuilder {
     }
   }
 
+  /**
+   * Happen to map from the (non-localized) value like STRONG to style.
+   */
+  _mapEdgeRefStrengthToEdgeStyle(strengthFieldValue) {
+    switch (strengthFieldValue) {
+      case 'STRONG':
+        return 'solid';
+      case 'WEAK':
+        return 'dashed';
+      case 'RAW':
+      default:
+        return 'dotted';
+    }
+  }
+
   _processDeferredBlock(rootNode, block, parentNode) {
-    const edgeCommon = (explicitInstanceGroup) => {
+    const edgeCommon = (explicitInstanceGroup, edgeKind, edgeStyle) => {
       const callVar = this.varMap.getVariableById(block.getFieldValue('CALLS_WHAT'));
       const callName = callVar.name;
       const callSym = this.idToSym.get(callName);
@@ -460,7 +498,12 @@ export class HierNodeGenerator extends HierBuilder {
 
       const ancestorNode = HierNode.findCommonAncestor(parentNode, otherNode);
       if (ancestorNode) {
-        ancestorNode.edges.push({ from: parentNode, to: otherNode, kind: 'call' });
+        ancestorNode.edges.push({
+          from: parentNode,
+          to: otherNode,
+          kind: edgeKind,
+          style: edgeStyle,
+        });
         //console.log('generating edge at ancestor', ancestorNode, parentNode, otherNode);
       } else {
         console.warn('skipping edge due to lack of ancestor', parentNode, otherNode);
@@ -468,9 +511,27 @@ export class HierNodeGenerator extends HierBuilder {
     };
 
     switch (block.type) {
+      case 'edge_use': {
+        edgeCommon(
+          this._extractInstanceGroup(block.getInputTargetBlock('INSTANCE')),
+          'use',
+          'solid');
+        break;
+      }
+
       case 'edge_call': {
         edgeCommon(
-          this._extractInstanceGroup(block.getInputTargetBlock('INSTANCE')));
+          this._extractInstanceGroup(block.getInputTargetBlock('INSTANCE')),
+          'call',
+          'solid');
+        break;
+      }
+
+      case 'edge_ref': {
+        edgeCommon(
+          this._extractInstanceGroup(block.getInputTargetBlock('INSTANCE')),
+          'ref',
+          this._mapEdgeRefStrengthToEdgeStyle(block.getFieldValue('STRENGTH')));
         break;
       }
 
