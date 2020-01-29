@@ -30,7 +30,7 @@ export class AutoSymHierBuilder extends HierBuilder {
     let cur = this.root;
     if (pathParts) {
       for (const part of pathParts) {
-        cur = cur.getOrCreateKid(part);
+        cur = cur.getOrCreateKid(part, part);
       }
     }
 
