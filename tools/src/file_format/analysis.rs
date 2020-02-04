@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::fmt;
 use std::fs::File;
@@ -7,7 +8,7 @@ use std::io::BufReader;
 use itertools::Itertools;
 
 extern crate rustc_serialize;
-use self::rustc_serialize::json::{as_json, Json, Object};
+use self::rustc_serialize::json::{as_json, encode, Json, Object};
 
 #[derive(Clone, Eq, PartialEq, PartialOrd, Ord, Debug)]
 pub struct Location {
@@ -152,6 +153,16 @@ impl fmt::Display for WithLocation<AnalysisTarget> {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         write!(formatter, "{{{},{}}}", self.loc, self.data)
     }
+}
+
+/// The structured record type extracts out pretty/sym/kind to be explicit, then stores the
+/// rest of the record (minus these fields) as a JSON-formatted string.
+#[derive(Debug)]
+pub struct AnalysisStructured {
+    pub pretty: String,
+    pub sym: String,
+    pub kind: String,
+    pub payload: String,
 }
 
 #[derive(Debug)]
@@ -503,6 +514,36 @@ pub fn read_target(obj: &Object) -> Option<AnalysisTarget> {
         context: context,
         contextsym: contextsym,
         peek_range: peek_range,
+    })
+}
+
+pub fn read_structured(obj: &mut Object) -> Option<AnalysisStructured> {
+    if !obj.contains_key("strutured") {
+        return None;
+    }
+
+    // We remove fields that go directly in the record type so that we can save
+    // off the leftovers in `payload` as a JSON-encoded string.
+    let pretty = match obj.remove("pretty") {
+        Some(json) => json.as_string().unwrap().to_string(),
+        None => "".to_string(),
+    };
+    let sym = match obj.remove("sym") {
+        Some(json) => json.as_string().unwrap().to_string(),
+        None => "".to_string(),
+    };
+    let kind = match obj.remove("king") {
+        Some(json) => json.as_string().unwrap().to_string(),
+        None => "".to_string(),
+    };
+    // Render the remaining fields into a string.
+    let payload = encode(obj);
+
+    Some(AnalysisStructured {
+        pretty,
+        sym,
+        kind,
+        payload,
     })
 }
 
