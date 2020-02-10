@@ -134,7 +134,14 @@ fn output_ipc_data(outputf: &mut File, locstr: &str, ipc_pretty: &str, ipc_sym: 
     write!(outputf, "\n").unwrap();
     write!(
         outputf,
-        r#"{{"loc": "{}", "source": 1, "syntax": "idl,ipc,def", "pretty": "ipc {}", "sym": "{}", "srcsym": "{}", "targetsym": "{}"}}"#,
+        r#"{{"loc": "{}", "source": 1, "syntax": "idl,ipc,def", "pretty": "ipc {}", "sym": "{}"}}"#,
+        locstr, ipc_pretty, ipc_sym
+    )
+    .unwrap();
+    write!(outputf, "\n").unwrap();
+    write!(
+        outputf,
+        r#"{{"loc": "{}", "structured": 1, "pretty": "{}", "sym": "{}", "kind": "ipc", "implKind": "idl", "srcsym": "{}", "targetsym": "{}"}}"#,
         locstr, ipc_pretty, ipc_sym, send_datum.sym, recv_datum.sym
     )
     .unwrap();

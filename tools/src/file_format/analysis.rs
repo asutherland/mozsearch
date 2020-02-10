@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::fmt;
 use std::fs::File;
@@ -155,14 +154,77 @@ impl fmt::Display for WithLocation<AnalysisTarget> {
     }
 }
 
-/// The structured record type extracts out pretty/sym/kind to be explicit, then stores the
-/// rest of the record (minus these fields) as a JSON-formatted string.
+/// The structured record type extracts out the necessary information to uniquely identify the
+/// symbol and what is required for cross-referencing's establishment of hierarchy/links.  The rest
+/// of the data in the JSON payload of the record (minus these fields) is re-encoded as a
+/// JSON-formatted string.
+///
+/// These records are not subject to merging at this time.  Where merging would occur, duplicates
+/// are simply dropped on the floor.  https://bugzilla.mozilla.org/show_bug.cgi?id=1468445#c1
+/// includes a very speculative proposal for how to deal with deviations between platforms.
 #[derive(Debug)]
 pub struct AnalysisStructured {
     pub pretty: String,
     pub sym: String,
     pub kind: String,
     pub payload: String,
+    pub src_sym: Option<String>,
+    pub target_sym: Option<String>,
+    /// A digest containing the `sym` values from each entry in `supers`.  `supers` is left intact
+    /// in `payload`, so this member should never be directly emitted, just used in crossref.
+    pub super_syms: Vec<String>,
+    /// A digest containing the `sym` values from each entry in `overrides`.  `overrides` is left
+    /// intact in `payload`, so this member should never be directly emitted, just crossreferenced.
+    pub override_syms: Vec<String>,
+}
+
+impl fmt::Display for AnalysisStructured {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            formatter,
+            r#""source":1,"pretty":{},"sym":{},"kind":{}"#,
+            as_json(&self.pretty),
+            as_json(&self.sym),
+            as_json(&self.kind)
+        )?;
+        if let Some(src_sym) = &self.src_sym {
+            write!(
+                formatter,
+                r#","type":"{}""#,
+                src_sym
+            )?;
+        }
+        if let Some(target_sym) = &self.target_sym {
+            write!(
+                formatter,
+                r#","type":"{}""#,
+                target_sym
+            )?;
+        }
+        // super_syms and override_syms are digests of data that's still present in payload so we
+        // don't need to do anything with them, just emit the payload string as-is.
+        write!(
+            formatter,
+            r#"{}"#,
+            &self.payload)?;
+        Ok(())
+    }
+}
+
+impl fmt::Display for WithLocation<AnalysisStructured> {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "{{{},{}}}", self.loc, self.data)
+    }
+}
+
+impl fmt::Display for WithLocation<Vec<AnalysisStructured>> {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        let locstr = format!("{}", self.loc);
+        for src in &self.data {
+            writeln!(formatter, "{{{},{}}}", locstr, src)?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
@@ -180,10 +242,6 @@ pub struct AnalysisSource {
     /// symbol, and if so, this is that.  Even if the record has a `type_pretty`, it may not have a
     /// type_sym.
     pub type_sym: Option<String>,
-    // XXX maybe there should be an Option<AnalysisMeta> here and we only attach it to definitions?
-    // Perhaps source records are the wrong thing here.
-    pub src_sym: Option<String>,
-    pub target_sym: Option<String>,
 }
 
 impl AnalysisSource {
@@ -227,34 +285,6 @@ impl AnalysisSource {
         if let Some(type_sym) = other.type_sym {
             self.type_sym.get_or_insert(type_sym);
         }
-        if let Some(src_sym) = other.src_sym {
-            self.src_sym.get_or_insert(src_sym);
-        }
-        if let Some(target_sym) = other.target_sym {
-            self.target_sym.get_or_insert(target_sym);
-        }
-    }
-
-    /// Indicates whether this is a "def" or not.  Note that this is determined by consulting the
-    /// `syntax` which is empty for locals (where no_crossref=true).  If you really care if
-    /// something is a def or not, you might want a target record (which always has a kind) or a
-    /// new type of record.
-    pub fn is_def(&self) -> bool {
-        return self.syntax.contains(&String::from("def"));
-    }
-
-    /// Indicate whether this is a synthetic IPC symbol that needs to habe its meta-info
-    /// propagated during cross-referencing.
-    pub fn is_ipc(&self) -> bool {
-        return self.pretty.split(' ').next().map_or(false, |kind| kind == "ipc");
-    }
-
-    /// Returns true if there's any meta-info of note on this record.
-    pub fn has_meta_info(&self) -> bool {
-        self.type_pretty.is_some() ||
-        self.type_sym.is_some() ||
-        self.src_sym.is_some() ||
-        self.target_sym.is_some()
     }
 
     /// Source records' "pretty" field is prefixed with their SyntaxKind.  It's also placed in the
@@ -267,7 +297,7 @@ impl AnalysisSource {
     pub fn get_syntax_kind(&self) -> Option<&str> {
         // It's a given that we're using a standard ASCII space character.
         return self.pretty.split(' ').next();
-    }
+     }
 }
 
 impl fmt::Display for AnalysisSource {
@@ -304,20 +334,6 @@ impl fmt::Display for AnalysisSource {
                 formatter,
                 r#","typesym":"{}""#,
                 type_sym
-            )?;
-        }
-        if let Some(src_sym) = &self.src_sym {
-            write!(
-                formatter,
-                r#","srcsym":"{}""#,
-                src_sym
-            )?;
-        }
-        if let Some(target_sym) = &self.target_sym {
-            write!(
-                formatter,
-                r#","targetsym":"{}""#,
-                target_sym
             )?;
         }
         Ok(())
@@ -384,7 +400,7 @@ fn parse_source_range(range: &str) -> SourceRange {
 
 pub fn read_analysis<T>(
     filename: &str,
-    filter: &mut dyn FnMut(&Object) -> Option<T>,
+    filter: &mut dyn FnMut(&mut Object) -> Option<T>,
 ) -> Vec<WithLocation<Vec<T>>> {
     read_analyses(vec![filename.to_string()].as_slice(), filter)
 }
@@ -395,7 +411,7 @@ pub fn read_analysis<T>(
 /// types being ignored.
 pub fn read_analyses<T>(
     filenames: &[String],
-    filter: &mut dyn FnMut(&Object) -> Option<T>,
+    filter: &mut dyn FnMut(&mut Object) -> Option<T>,
 ) -> Vec<WithLocation<Vec<T>>> {
     let mut result = Vec::new();
     for filename in filenames {
@@ -412,7 +428,7 @@ pub fn read_analyses<T>(
             let line = line.unwrap();
             lineno += 1;
             let data = Json::from_str(&line);
-            let data = match data {
+            let mut data = match data {
                 Ok(data) => data,
                 Err(e) => {
                     warn!(
@@ -422,10 +438,12 @@ pub fn read_analyses<T>(
                     continue;
                 }
             };
-            let obj = data.as_object().unwrap();
+            let obj = data.as_object_mut().unwrap();
+            // Destructively pull the "loc" out before passing it into the filter.  This is for
+            // read_structured which stores everything it doesn't directly process in `payload`.
+            let loc = parse_location(obj.remove("loc").unwrap().as_string().unwrap());
             match filter(obj) {
                 Some(v) => {
-                    let loc = parse_location(obj.get("loc").unwrap().as_string().unwrap());
                     result.push(WithLocation { data: v, loc: loc })
                 }
                 None => {}
@@ -470,7 +488,7 @@ pub fn read_analyses<T>(
     result2
 }
 
-pub fn read_target(obj: &Object) -> Option<AnalysisTarget> {
+pub fn read_target(obj: &mut Object) -> Option<AnalysisTarget> {
     if !obj.contains_key("target") {
         return None;
     }
@@ -518,9 +536,12 @@ pub fn read_target(obj: &Object) -> Option<AnalysisTarget> {
 }
 
 pub fn read_structured(obj: &mut Object) -> Option<AnalysisStructured> {
-    if !obj.contains_key("strutured") {
+    if !obj.contains_key("structured") {
         return None;
     }
+
+    // We don't want this in payload.
+    obj.remove("structured");
 
     // We remove fields that go directly in the record type so that we can save
     // off the leftovers in `payload` as a JSON-encoded string.
@@ -532,22 +553,51 @@ pub fn read_structured(obj: &mut Object) -> Option<AnalysisStructured> {
         Some(json) => json.as_string().unwrap().to_string(),
         None => "".to_string(),
     };
-    let kind = match obj.remove("king") {
+    let kind = match obj.remove("kind") {
         Some(json) => json.as_string().unwrap().to_string(),
         None => "".to_string(),
     };
+
+    // We need to go from Option<Json> to Option<String>.
+    let to_str_opt = |oj: Option<Json>| match oj {
+        Some(j) => Some(j.as_string().unwrap().to_string()),
+        None => None
+    };
+
+    let src_sym = to_str_opt(obj.remove("srcsym"));
+    let target_sym = to_str_opt(obj.remove("targetsym"));
+
+    let super_syms: Vec<String> = match obj.get("supers") {
+        Some(Json::Array(arr)) => arr.iter().map(|item| item.as_object().unwrap()
+                                                            .get("sym").unwrap()
+                                                            .as_string().unwrap().to_string())
+                                            .collect(),
+        _ => vec![],
+    };
+    let override_syms: Vec<String> = match obj.get("overrides") {
+        Some(Json::Array(arr)) => arr.iter().map(|item| item.as_object().unwrap()
+                                                            .get("sym").unwrap()
+                                                            .as_string().unwrap().to_string())
+                                            .collect(),
+        _ => vec![],
+    };
+
     // Render the remaining fields into a string.
-    let payload = encode(obj);
+    let payload = encode(obj).unwrap();
 
     Some(AnalysisStructured {
         pretty,
         sym,
         kind,
         payload,
+        src_sym,
+        target_sym,
+        super_syms,
+        override_syms,
     })
 }
 
-pub fn read_source(obj: &Object) -> Option<AnalysisSource> {
+pub fn read_source(obj: &mut Object) -> Option<AnalysisSource> {
     if !obj.contains_key("source") {
         return None;
     }
@@ -603,8 +653,6 @@ pub fn read_source(obj: &Object) -> Option<AnalysisSource> {
 
     let type_pretty = to_str_opt(&obj.get("type"));
     let type_sym = to_str_opt(&obj.get("typesym"));
-    let src_sym = to_str_opt(&obj.get("srcsym"));
-    let target_sym = to_str_opt(&obj.get("targetsym"));
 
     Some(AnalysisSource {
         pretty,
@@ -614,8 +662,6 @@ pub fn read_source(obj: &Object) -> Option<AnalysisSource> {
         nesting_range,
         type_pretty,
         type_sym,
-        src_sym,
-        target_sym,
     })
 }
 

@@ -242,10 +242,58 @@ calling bytes "char units" just adds terrifying confusion.
 
 #### Formal Hierarchy:
 
-Record info:
-
-- `sizeBytes`: Size in bytes.
-- `fields`: An array of:
+Raw record info.  These are attributes that will be found in the analysis files.
+- `pretty`: The pretty name/identifier for this structured symbol info.
+- `sym`: The searchfox symbol for this symbol.
+- `kind`: A string with one of the following values:
+  - `enum`: TODO: I don't know that this actually is a thing we emit yet?
+  - `class`
+  - `struct`
+  - `union`
+  - `method`: It's a method on a class/struct.  It will have `overrides`.
+  - `function`: A boring function.  No `overrides`.
+  - `field`: A member of a class/struct.  Right now the field record has minimal
+    info with the intent being that the data canonically lives on the parent
+    symbol and this just provides the `parentsym` necessary to get to that info.
+    But this potentially needs more thought.  TODO: Think more on this!
+  - `ipc`: An IPC function where there's a send method and a recv method.  The
+    send method will be associated via `srcsym` and the recv method via
+    `targetsym`.  TODO: clarify what happens for the IPC interface.
+- `parentsym`: For methods and fields, the symbol of the record to which they
+  belong.  The current intent is that this is not populated for namespace
+  purposes.  (That is, for a class "Bar" in namespace "foo" with pretty name
+  "foo::Bar", "Bar" would not have a parentsym.)  The rationale is that we
+  expect there to be a ton of stuff in any given namespace and we already have
+  means of looking up the contents of a namespace via the `identifiers` table.
+  This may want to evolve in the future, however.  Note that this attribute is
+  not currently used for any cross-referencing, it's just meta.  (And note that
+  target records' `contextsym` should frequently be the same when it's not just
+  a namespace.)
+- `srcsym`: For "ipc" calls, the symbol that corresponds to the send method.
+- `targetsym`: For "ipc" calls, the symbol that corresponds to the recv method.
+- `implKind`: Assume to be "impl" if not present.  Reasonable values:
+  - `idl`: This is the semantic definition in XPIDL, IPDL, WebIDL, etc.
+  - `binding`: Ex: WebIDL binding.
+  - `impl`: By default, most things will be "impl".  But when WebIDL/etc. are
+    involved this will be the actual implementation.
+- `sizeBytes`: Size in bytes.  Not present for method/function.
+- `supers`: For class-like symbols, an array of:
+  - `pretty`: The pretty name/identifier for this super.
+  - `sym`: The searchfox symbol for this super.
+  - `props`: An array of strings whose presence indicates a semantic attribute:
+    - `virtual`: It's a virtual base class if present.
+- `methods`: For class-like symbols, an array of:
+  - `pretty`: The pretty name/identifier for this method.
+  - `sym`: The searchfox symbol for this method.  
+  - `props`: An array of strings whose presence indicates a semantic attribute:
+    - `static`: It's a static method (implies not "instance").
+    - `instance`: It's a method on the instance (implies not "static").
+    - `virtual`: It's a virtual method.
+    - `user`: It's user-provided.
+    - `defaulted`: It's defaulted per C++0x, AKA someone did `= default`.
+    - `deleted`: It's deleted per C++0x, AKA someone did `= delete`.
+    - `constexpr`: It's marked (C++11) constexpr!
+- `fields`: For data-structure-like symbols, an array of:
   - `pretty`: The pretty name/identifier for this field.
   - `sym`: The searchfox symbol for this field.
   - `type`: Compiler's string representation of the type.  This is still
@@ -256,6 +304,34 @@ Record info:
     properties whose names are derived from the AST dumper:
     - `begin`
     - `width`
+  - `sizeBytes`: Only present in non-bit-fields.  The size of the fieldin bytes.
+- `overrides`: For methods, an array of method signatures that are overridden.
+  - `pretty`: The pretty name/identifier for the referenced method.
+  - `sym`: The searchfox symbol for the referenced method.
+- `props`: For methods, an array of strings whose presence indicates a semantic
+  attribute.  These are the same as the props under a class-like symbol's
+  `methods` array.
+  - `static`: It's a static method (implies not "instance").
+  - `instance`: It's a method on the instance (implies not "static").
+  - `virtual`: It's a virtual method.
+  - `user`: It's user-provided.
+  - `defaulted`: It's defaulted per C++0x, AKA someone did `= default`.
+  - `deleted`: It's deleted per C++0x, AKA someone did `= delete`.
+  - `constexpr`: It's marked (C++11) constexpr!
+
+Attributes added/updated by cross-referencing:
+- `subclasses`: Derived from `supers`.
+  - `pretty`
+  - `sym`
+- `overridenBy`: Derived from `overrides`.
+  - `pretty`
+  - `sym`
+- `srcsym`: May exist in the record, also propagated from `idl` implKind
+  records.
+- `targetsym`: May exist in the record, also propagated from `idl` implKind
+  records.
+- `idlsym`: Linkaged established by `idl` implKind records from `srcsym` and
+  `targetsym` symbols to the `idl` symbol.
 
 ### C++ inheritance
 

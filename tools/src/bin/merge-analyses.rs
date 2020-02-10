@@ -22,7 +22,8 @@ use self::rustc_serialize::json::Object;
 
 extern crate tools;
 use tools::file_format::analysis::{
-    parse_location, read_analyses, read_source, read_target, AnalysisSource, WithLocation,
+    parse_location, read_analyses, read_source, read_structured, read_target, AnalysisSource,
+    WithLocation,
 };
 
 fn main() {
@@ -38,10 +39,11 @@ fn main() {
     }
 
     let mut unique_targets = HashSet::new();
+    let mut unique_structured = HashSet::new();
 
     let src_data = read_analyses(
         &args,
-        &mut |obj: &Object| {
+        &mut |obj: &mut Object| {
             // return source objects for so that they come out of `read_analyses` for
             // additional processing below.
             if let Some(src) = read_source(obj) {
@@ -55,6 +57,15 @@ fn main() {
                 if !unique_targets.contains(&target_str) {
                     println!("{}", target_str);
                     unique_targets.insert(target_str);
+                }
+            }
+            // for structured objects, same deal as targets, de-duplicate with a hashset.
+            if let Some(structured) = read_structured(obj) {
+                let loc = parse_location(obj.get("loc").unwrap().as_string().unwrap());
+                let structured_str = format!("{}", WithLocation { data: structured, loc });
+                if !unique_structured.contains(&structured_str) {
+                    println!("{}", structured_str);
+                    unique_structured.insert(structured_str);
                 }
             }
             None

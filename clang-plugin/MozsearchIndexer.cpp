@@ -1095,7 +1095,6 @@ public:
     auto cxxDecl = dyn_cast<CXXRecordDecl>(decl);
 
     if (cxxDecl) {
-
       J.attributeBegin("supers");
       J.arrayBegin();
       for (const CXXBaseSpecifier &Base : cxxDecl->bases()) {
@@ -1222,7 +1221,7 @@ public:
     F->Output.push_back(std::move(ros.str()));
   }
 
-void emitStructuredInfo(SourceLocation Loc, const FunctionDecl *decl) {
+  void emitStructuredInfo(SourceLocation Loc, const FunctionDecl *decl) {
     std::string json_str;
     llvm::raw_string_ostream ros(json_str);
     llvm::json::OStream J(ros);
@@ -1241,6 +1240,9 @@ void emitStructuredInfo(SourceLocation Loc, const FunctionDecl *decl) {
 
     if (cxxDecl) {
       J.attribute("kind", "method");
+      if (auto parentDecl = cxxDecl->getParent()) {
+        J.attribute("parentsym", getMangledName(CurMangleContext, parentDecl));
+      }
 
       J.attributeBegin("overrides");
       J.arrayBegin();
@@ -1289,6 +1291,45 @@ void emitStructuredInfo(SourceLocation Loc, const FunctionDecl *decl) {
     }
     J.arrayEnd();
     J.attributeEnd();
+
+    // End the top-level object.
+    J.objectEnd();
+
+    FileInfo *F = getFileInfo(Loc);
+    // we want a newline.
+    ros << '\n';
+    F->Output.push_back(std::move(ros.str()));
+  }
+
+  /**
+   * Emit structured info for a field.  Right now the intent is for this to just
+   * be a pointer to its parent's structured info with this method entirely
+   * avoiding getting the ASTRecordLayout.
+   *
+   * TODO: Give more thought on where to locate the canonical info on fields and
+   * how to normalize their exposure over the web.  We could relink the info
+   * both at cross-reference time and web-server lookup time.  This is also
+   * called out in `analysis.md`.
+   */
+  void emitStructuredInfo(SourceLocation Loc, const FieldDecl *decl) {
+    std::string json_str;
+    llvm::raw_string_ostream ros(json_str);
+    llvm::json::OStream J(ros);
+    // Start the top-level object.
+    J.objectBegin();
+
+    unsigned StartOffset = SM.getFileOffset(Loc);
+    unsigned EndOffset =
+        StartOffset + Lexer::MeasureTokenLength(Loc, SM, CI.getLangOpts());
+    J.attribute("loc", locationToString(Loc, EndOffset - StartOffset));
+    J.attribute("structured", 1);
+    J.attribute("pretty", getQualifiedName(decl));
+    J.attribute("sym", getMangledName(CurMangleContext, decl));
+    J.attribute("kind", "field");
+
+    if (auto parentDecl = decl->getParent()) {
+      J.attribute("parentsym", getMangledName(CurMangleContext, parentDecl));
+    }
 
     // End the top-level object.
     J.objectEnd();
@@ -1763,6 +1804,12 @@ void emitStructuredInfo(SourceLocation Loc, const FunctionDecl *decl) {
           !D2->isTemplateInstantiation() &&
           !wasTemplate &&
           !D2->isFunctionTemplateSpecialization() &&
+          !TemplateStack) {
+        emitStructuredInfo(Loc, D2);
+      }
+    }
+    if (FieldDecl *D2 = dyn_cast<FieldDecl>(D)) {
+      if (!D2->isTemplated() &&
           !TemplateStack) {
         emitStructuredInfo(Loc, D2);
       }
