@@ -29,7 +29,7 @@ const RE_JS_SYMBOL = /^(\w+#)*(\w+)#(\w+)$/;
  */
 export default class SymbolInfo extends EE {
   constructor({ rawName, defLocation, prettyName,
-                somePath, headerPath, sourcePath, syntaxKind }) {
+                somePath, headerPath, sourcePath, semanticKind }) {
     super();
 
     this.serial = 0;
@@ -76,7 +76,7 @@ export default class SymbolInfo extends EE {
     this.defLocation = defLocation || null;
 
     this.typeLetter = '?';
-    this.syntaxKind = 'unknown';
+    this.semanticKind = 'unknown';
 
     this.analyzing = false;
     this.analyzed = false;
@@ -142,8 +142,8 @@ export default class SymbolInfo extends EE {
       this.updatePrettyNameFrom(
         prettyName, sourcePath || headerPath || somePath);
     }
-    if (syntaxKind) {
-      this.updateSyntaxKindFrom(syntaxKind);
+    if (semanticKind) {
+      this.updateSemanticKindFrom(semanticKind);
     }
     this.updateBoring();
   }
@@ -185,9 +185,12 @@ export default class SymbolInfo extends EE {
   }
 
   isCallable() {
-    return this.syntaxKind === 'function' ||
-           this.syntaxKind === 'constructor' ||
-           this.syntaxKind === 'destructor';
+    return this.semanticKind === 'function' ||
+           this.semanticKind === 'method' ||
+           // XXX constructor/destructor aren't semantic kinds yet; they were
+           // previously possible syntax kinds.
+           this.semanticKind === 'constructor' ||
+           this.semanticKind === 'destructor';
   }
 
   isSameClassAs(otherSym) {
@@ -295,9 +298,9 @@ export default class SymbolInfo extends EE {
     this.markDirty();
   }
 
-  updateSyntaxKindFrom(syntaxKind) {
-    this.syntaxKind = syntaxKind;
-    this.typeLetter = syntaxKind[0];
+  updateSemanticKindFrom(semanticKind) {
+    this.semanticKind = semanticKind;
+    this.typeLetter = semanticKind[0];
   }
 
   /**

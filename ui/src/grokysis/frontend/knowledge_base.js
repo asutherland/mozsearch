@@ -216,7 +216,7 @@ export default class KnowledgeBase {
       somePath: opts && opts.somePath,
       headerPath: opts && opts.headerPath,
       sourcePath: opts && opts.sourcePath,
-      syntaxKind: opts && opts.syntaxKind,
+      semanticKind: opts && opts.semanticKind,
     });
     this.symbolsByRawName.set(rawName, symInfo);
 
@@ -351,9 +351,26 @@ export default class KnowledgeBase {
     symInfo.updatePrettyNameFrom(rawSymInfo.pretty);
 
     // ## Consume "meta" data
+    // XXX Currently, "use" links do not include an explicit "kind".  It may
+    // make sense to explicitly include this when building the crossref
+    // database.  Our interest in this JS logic is for building a call-graph,
+    // however, and there's a cheap heuristic that's possible here.  Which is
+    // that if this current symbol that we are is callable, then presumably any
+    // use of our symbol is from something else that's also callable.  (Noting
+    // that def/decl are inherently not a use.)
+    //
+    // It's not a huge deal to inline the information into crossref, so if it
+    // seems like we're trying to make this logic more clever, we should
+    // probably just augment the crossref generation.
+    let usesSemanticKind;
     if (rawSymInfo.meta) {
       const meta = rawSymInfo.meta;
-      symInfo.updateSyntaxKindFrom(meta.syntax);
+      symInfo.updateSemanticKindFrom(meta.kind);
+      if (symInfo.isCallable()) {
+        // XXX it might also make sense to call this 'inferred-function' and
+        // have isCallable aware of that magic type.
+        usesSemanticKind = 'function';
+      }
 
       if (meta.srcsym) {
         const srcSym = symInfo.srcSym =
@@ -372,7 +389,7 @@ export default class KnowledgeBase {
       }
 
       if (meta.idlsym) {
-        const idlSym = symInfo.idlSym =
+        symInfo.idlSym =
           this.lookupRawSymbol(meta.idlsym, analyzeHopsInclusive - 1);
         // The IDL symbol doesn't have any graph relevance since it already
         // would have provided us with the srcsym and targetsym relations.
@@ -387,7 +404,7 @@ export default class KnowledgeBase {
           this.normalizeSymbol(consumedInfo.sym), analyzeHopsInclusive - 1,
           consumedInfo.pretty,
           // XXX it might be nice for consumes to provide the def location/filetype.
-          { syntaxKind: consumedInfo.syntax });
+          { semanticKind: consumedInfo.kind });
 
         symInfo.outEdges.add(consumedSym);
         consumedSym.inEdges.add(symInfo);
@@ -453,11 +470,8 @@ export default class KnowledgeBase {
                     lineResult.context,
                     // Provide a path for pretty name mangling normalization.
                     { somePath: pathLines.path,
-                      // Assume the other thing is a function until we hear
-                      // otherwise.  This is necessary for the current call
-                      // graph filtering that wants to ensure things are
-                      // callable.
-                      syntaxKind: 'function' });
+                      // See note above about the presumption here.
+                      semanticKind: usesSemanticKind });
 
                   symInfo.inEdges.add(contextSym);
                   contextSym.outEdges.add(symInfo);
