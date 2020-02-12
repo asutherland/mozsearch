@@ -1312,6 +1312,14 @@ public:
    * called out in `analysis.md`.
    */
   void emitStructuredInfo(SourceLocation Loc, const FieldDecl *decl) {
+    // XXX the call to decl::getParent will assert below for ObjCIvarDecl
+    // instances because their DecContext is not a RecordDecl.  So just bail
+    // for now.
+    // TODO: better support ObjC.
+    if (const ObjCIvarDecl *D2 = dyn_cast<ObjCIvarDecl>(decl)) {
+      return;
+    }
+
     std::string json_str;
     llvm::raw_string_ostream ros(json_str);
     llvm::json::OStream J(ros);
