@@ -77,22 +77,51 @@ export default class SymbolInfo extends EE {
 
     this.typeLetter = '?';
     this.semanticKind = 'unknown';
+    this.implKind = 'impl';
 
     this.analyzing = false;
     this.analyzed = false;
 
     /**
-     * This is a set of symbols that have been found to be superclass ancestors
-     * of this symbol.
+     * Direct superclasses of this symbol with symInfo clobbered into each meta
+     * object.
      */
-    this.superSymbols = new Set();
-    this.subSymbols = new Set();
+    this.supers = null;
+    /**
+     * Direct subclasses of this symbols.  Because the subclass xrefs right now
+     * don't include any meta, this is just an object with a `symInfo` key.
+     */
+    this.subclasses = null;
+
+    /**
+     * Methods is a copy of the raw meta data for methods with symInfo clobbered
+     * into each method meta object.
+     */
+    this.methods = null;
+    /**
+     * Fields is a copy of the raw meta data for fields with symInfo clobbered
+     * into each field meta object.
+     */
+    this.fields = null;
+
+    this.overrides = null;
+    this.overriddenBy = null;
+
+    this.parentSym = null;
 
     this.srcSym = null;
     this.targetSym = null;
     this.idlSym = null;
 
+    /**
+     * The peek string for the declaration for this symbol, if there was only
+     * one declaration.
+     */
     this.declPeek = null;
+    /**
+     * The peek string for the definition for this symbol, if there was only one
+     * definition.
+     */
     this.defPeek = null;
 
     /**

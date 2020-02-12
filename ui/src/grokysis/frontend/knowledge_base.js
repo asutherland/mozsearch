@@ -372,9 +372,20 @@ export default class KnowledgeBase {
         usesSemanticKind = 'function';
       }
 
+      // For all cross-referenced metadata symbols, we want to ensure
+      // that analysis happens for every symbol referenced, but we don't want
+      // to end up including every symbol ever, so we subtract 1 off the hops
+      // but with Math.max(1) included.
+      const ensureAnalysisHops = Math.max(1, analyzeHopsInclusive - 1);
+
+      if (meta.parentsym) {
+        symInfo.parentSym = this.lookupRawSymbol(
+          meta.parentsym, ensureAnalysisHops);
+      }
+
       if (meta.srcsym) {
         const srcSym = symInfo.srcSym =
-          this.lookupRawSymbol(meta.srcsym, analyzeHopsInclusive - 1);
+          this.lookupRawSymbol(meta.srcsym, ensureAnalysisHops);
         symInfo.inEdges.add(srcSym);
         srcSym.outEdges.add(symInfo);
         srcSym.markDirty();
@@ -382,7 +393,7 @@ export default class KnowledgeBase {
 
       if (meta.targetsym) {
         const targetSym = symInfo.targetSym =
-          this.lookupRawSymbol(meta.targetsym, analyzeHopsInclusive - 1);
+          this.lookupRawSymbol(meta.targetsym, ensureAnalysisHops);
         symInfo.outEdges.add(targetSym);
         targetSym.inEdges.add(symInfo);
         targetSym.markDirty();
@@ -390,9 +401,57 @@ export default class KnowledgeBase {
 
       if (meta.idlsym) {
         symInfo.idlSym =
-          this.lookupRawSymbol(meta.idlsym, analyzeHopsInclusive - 1);
+          this.lookupRawSymbol(meta.idlsym, ensureAnalysisHops);
         // The IDL symbol doesn't have any graph relevance since it already
         // would have provided us with the srcsym and targetsym relations.
+      }
+
+      if (meta.supers) {
+        symInfo.supers = meta.supers.map(raw => {
+          const o = Object.assign({}, raw);
+          o.symInfo = this.lookupRawSymbol(raw.sym, ensureAnalysisHops);
+          return o;
+        });
+      }
+
+      if (meta.subclasses) {
+        symInfo.subclasses = meta.subclasses.map(rawSym => {
+          const o = {};
+          o.symInfo = this.lookupRawSymbol(rawSym, ensureAnalysisHops);
+          return o;
+        });
+      }
+
+      if (meta.methods) {
+        symInfo.methods = meta.methods.map((raw) => {
+          const o = Object.assign({}, raw);
+          o.symInfo = this.lookupRawSymbol(raw.sym, ensureAnalysisHops);
+          return o;
+        });
+      }
+
+      if (meta.fields) {
+        symInfo.fields = meta.fields.map((raw) => {
+          const o = Object.assign({}, raw);
+          o.symInfo = this.lookupRawSymbol(raw.sym, ensureAnalysisHops);
+          return o;
+        });
+      }
+
+      if (meta.overrides) {
+        symInfo.overrides = meta.overrides.map((raw) => {
+          const o = Object.assign({}, raw);
+          o.symInfo = this.lookupRawSymbol(raw.sym, ensureAnalysisHops);
+          return o;
+        });
+      }
+
+      if (meta.overriddenBy) {
+        symInfo.overridenBy = meta.overridenBy.map(rawSym => {
+          const o = {};
+          o.symInfo = this.lookupRawSymbol(rawSym, ensureAnalysisHops);
+          return o;
+        });
       }
     }
 

@@ -25,6 +25,7 @@ import { DiagramSheetBinding } from './components/sheets/diagram.jsx';
 import { BlocklyDiagramEditorBinding } from './components/sheets/blockly_diagram_editor.jsx';
 import { SearchFieldBinding } from './components/sheets/search_field.jsx';
 import { SearchResultsBinding } from './components/sheets/search_results.jsx';
+import { SymbolContextSheetBinding } from './components/sheets/symbol_context.jsx';
 
 import KBSymbolInfoPopup from './components/popups/kb_symbol_info.jsx';
 
@@ -95,6 +96,7 @@ function makeGrokContext() {
         searchField: SearchFieldBinding,
         diagram: DiagramSheetBinding,
         blocklyDiagram: BlocklyDiagramEditorBinding,
+        symbolContext: SymbolContextSheetBinding,
 
         // sentinel sourceView thing.
         sourceView: {
@@ -256,7 +258,8 @@ const gHighlighter = new SymbolHighlighter();
 function onSourceMouseMove(evt) {
   // We only want the "symbols" for hover highlighting, but we do desire the
   // side-effect of the `symInfo` lookup occurring.
-  const { symbolNames, visibleTokenText } = semanticInfoFromTarget(evt.target);
+  const { symbolNames, symInfo, visibleTokenText } =
+    semanticInfoFromTarget(evt.target);
 
   // Are we hovering anything?
   if (symbolNames) {
@@ -265,6 +268,8 @@ function onSourceMouseMove(evt) {
   } else {
     gHighlighter.stopHighlightingGroup("hovered");
   }
+
+  gSourceSessionThing.broadcastMessage('sourceView', 'hovered', { symInfo });
 }
 
 /**
@@ -279,6 +284,8 @@ function onSourceClick(evt) {
   }
 
   evt.stopPropagation();
+
+  gSourceSessionThing.broadcastMessage('sourceView', 'clicked', { symInfo });
 
   gGrokCtx.sessionManager.popupManager.showPopup(
     gSourceSessionThing,
