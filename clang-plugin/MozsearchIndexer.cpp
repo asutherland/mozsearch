@@ -1689,7 +1689,7 @@ public:
         NestingRange = getCompoundStmtRange(D2->getBody());
       }
     } else if (TagDecl *D2 = dyn_cast<TagDecl>(D)) {
-      Kind = D2->isThisDeclarationADefinition() ? "def" : "decl";
+      Kind = D2->isThisDeclarationADefinition() ? "def" : "forward";
       PrettyKind = "type";
 
       if (D2->isThisDeclarationADefinition() && D2->getDefinition() == D2) {

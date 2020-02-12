@@ -423,6 +423,7 @@ fn main() {
                 AnalysisKind::Def => "defs",
                 AnalysisKind::Assign => "assignments",
                 AnalysisKind::Decl => "decls",
+                AnalysisKind::Forward => "forwards",
                 AnalysisKind::Idl => "idl",
                 AnalysisKind::IPC => "ipc",
             };

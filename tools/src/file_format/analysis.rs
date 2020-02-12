@@ -94,6 +94,7 @@ pub enum AnalysisKind {
     Def,
     Assign,
     Decl,
+    Forward,
     Idl,
     IPC,
 }
@@ -105,6 +106,7 @@ impl fmt::Display for AnalysisKind {
             AnalysisKind::Def => "def",
             AnalysisKind::Assign => "assign",
             AnalysisKind::Decl => "decl",
+            AnalysisKind::Forward => "forward",
             AnalysisKind::Idl => "idl",
             AnalysisKind::IPC => "ipc",
         };
@@ -499,6 +501,7 @@ pub fn read_target(obj: &mut Object) -> Option<AnalysisTarget> {
         "def" => AnalysisKind::Def,
         "assign" => AnalysisKind::Assign,
         "decl" => AnalysisKind::Decl,
+        "forward" => AnalysisKind::Forward,
         "idl" => AnalysisKind::Idl,
         "ipc" => AnalysisKind::IPC,
         _ => panic!("bad target kind"),
