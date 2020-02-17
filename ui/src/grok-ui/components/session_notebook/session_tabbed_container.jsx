@@ -30,14 +30,15 @@ export class SessionTabbedToolbar extends DirtyingComponent {
   }
 
   render() {
-    const activeThing = this.track.computeTabbedThingToDisplay();
+    const useActiveThing = this.track.computeTabbedThingToDisplay();
 
-    const tabButtons = this.track.things.map((thing) => {
-      const selectThisThing = () => {
-        this.track.selectThing(thing);
-      };
-      return (
-        <Popup
+    const makeTabButtons = (track, activeThing) => {
+      return track.things.map((thing) => {
+        const selectThisThing = () => {
+          track.selectThing(thing);
+        };
+        return (
+          <Popup
           key={ thing.id }
           content={ thing.makeLabel() }
           mouseEnterDelay={250}
@@ -46,77 +47,76 @@ export class SessionTabbedToolbar extends DirtyingComponent {
           size='large'
           trigger={
             <Button
-              icon={ thing.binding.icon }
-              active={ thing === activeThing }
-              onClick={ selectThisThing }
-              />
+            icon={ thing.binding.icon }
+            active={ thing === activeThing }
+            onClick={ selectThisThing }
+            />
           }
-          />
-      );
-    });
-
-    const addDropdownItems = this.sessionManager.userSpawnables.map(
-      ({ type, binding }) => {
-        const spawnThisTab = () => {
-          this.track.addThing(
-            null, null,
-            {
-              position: 'start',
-              type,
-              persisted: {}
-            });
-        };
-        return (
-          <Dropdown.Item
-            key={ type }
-            text={ binding.spawnable }
-            onClick={ spawnThisTab }
           />
         );
       });
-
-    const closeCurrentThing = () => {
-      if (activeThing) {
-        activeThing.removeSelf();
-      }
     };
 
-    let canClose = activeThing && !activeThing.binding.permanent;
+    const tabButtons =
+      makeTabButtons(this.track, useActiveThing);
 
-    // The Dropdown popups below for the add tab/close tab don't use
-    // <Dropdown button> and instead wrap a Button explicitly via trigger
-    // because otherwise they get styled like there's going to be some kind
-    // of attached label to the right.  I didn't spend a lot of time on this
-    // and mainly was cargo culting an example that already had the right
-    // styling.  They also don't do the right thing in a Button.Group because of
-    // this, so they end up as independent button things.
-    //
-    //
-    return (
-      <div className="sessionTabbedToolbar">
-        <Button.Group vertical>
-          { tabButtons }
-        </Button.Group>
-        &nbsp;
-          <Popup
-            content='Add New Tab'
-            position='right center'
-            mouseEnterDelay={250}
-            on='hover'
-            size='large'
-            trigger={
-              <Dropdown
-                trigger={<Button style={{ 'margin-right': 0 }} icon='plus' />}
-                icon={ null }
-                >
-                <Dropdown.Menu>
-                  { addDropdownItems }
-                </Dropdown.Menu>
-              </Dropdown>
-            }
-            />
-          <Popup
-            content={ canClose ? 'Close Current Tab' : 'Current tab not allowed to be closed.' }
+    let maybeSpawnButton;
+    if (this.props.spawn) {
+      const addDropdownItems = this.sessionManager.userSpawnables.map(
+        ({ type, binding }) => {
+          const spawnThisTab = () => {
+            this.track.addThing(
+              null, null,
+              {
+                position: 'start',
+                type,
+                persisted: {}
+              });
+            };
+            return (
+              <Dropdown.Item
+              key={ type }
+              text={ binding.spawnable }
+              onClick={ spawnThisTab }
+              />
+            );
+          });
+
+      maybeSpawnButton = (
+        <Popup
+          content='Add New Tab'
+          position='right center'
+          mouseEnterDelay={250}
+          on='hover'
+          size='large'
+          trigger={
+            <Dropdown
+              trigger={<Button style={{ 'margin-right': 0 }} icon='plus' />}
+              icon={ null }
+              >
+              <Dropdown.Menu>
+                { addDropdownItems }
+              </Dropdown.Menu>
+            </Dropdown>
+          }
+          />
+      );
+    }
+
+    const makeCloseButton = (track, activeThing, label) => {
+      const closeCurrentThing = () => {
+        if (activeThing) {
+          activeThing.removeSelf();
+        }
+      };
+
+      let canClose = activeThing &&
+                      !activeThing.binding.permanent &&
+                      track.things.length > 1;
+
+      return (
+        <Popup
+            content={ canClose ? label : 'Current tab not allowed to be closed.' }
             position='right center'
             mouseEnterDelay={250}
             on='hover'
@@ -138,7 +138,29 @@ export class SessionTabbedToolbar extends DirtyingComponent {
               </Dropdown>
             }
             />
-          &nbsp;
+        );
+    };
+
+    const closeButton = makeCloseButton(
+      this.track, useActiveThing, this.props.closeLabel);
+
+    // The Dropdown popups below for the add tab/close tab don't use
+    // <Dropdown button> and instead wrap a Button explicitly via trigger
+    // because otherwise they get styled like there's going to be some kind
+    // of attached label to the right.  I didn't spend a lot of time on this
+    // and mainly was cargo culting an example that already had the right
+    // styling.  They also don't do the right thing in a Button.Group because of
+    // this, so they end up as independent button things.
+    //
+    //
+    return (
+      <div className="sessionTabbedToolbar">
+        <Button.Group vertical>
+          { tabButtons }
+        </Button.Group>
+        &nbsp;
+        { maybeSpawnButton }
+        { closeButton }
       </div>
     );
   }

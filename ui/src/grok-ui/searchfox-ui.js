@@ -504,9 +504,23 @@ function replaceUIWithOverwhelmingComplexity() {
   ReactDOM.render(headerTags, headerElem);
 
   const toolbarTags = (
-    <SessionTabbedToolbar
-      grokCtx={ gGrokCtx }
-      trackName="top" />
+    <div>
+      <SessionTabbedToolbar
+        grokCtx={ gGrokCtx }
+        trackName="top"
+        spawn={true}
+        closeLabel="Close Current Top Box Tab"
+        />
+      &nbsp;
+      <hr />
+      &nbsp;
+      <SessionTabbedToolbar
+        grokCtx={ gGrokCtx }
+        trackName="content"
+        spawn={false}
+        closeLabel="Close Current Content Tab"
+        />
+    </div>
   );
 
   ReactDOM.render(toolbarTags, toolboxElem);

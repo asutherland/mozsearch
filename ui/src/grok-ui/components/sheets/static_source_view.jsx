@@ -60,7 +60,7 @@ export let StaticSourceViewBinding = {
   },
 
   makeLabelForModel(sessionThing, model) {
-    return `Results: ${ model.searchText }`;
+    return `Source File: ${ model.path }`;
   },
 
   makeWidgetForModel(sessionThing, model) {
