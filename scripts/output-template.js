@@ -9,6 +9,7 @@ run(mozSearchRoot + "/scripts/output.js");
 let opt = {tree: treeName,
            title: "{{TITLE}} - mozsearch"};
 
+// ## Non-fancy "search" template
 let searchBody = `<script>
       var results = {{BODY}};
       window.addEventListener("load", function() { showSearchResults(results); });
@@ -16,6 +17,18 @@ let searchBody = `<script>
 
 let output = generate(searchBody, opt);
 
+// Redirect stdout to the output file, saving off stdout
 let old = redirect(indexRoot + "/templates/search.html");
 print(output);
+// Restore stdout
+os.file.close(redirect(old));
+
+// ## Fancy "sorch" template
+searchBody = `<script>
+      window.SEARCH_RESULTS = {{BODY}};
+    </script>`;
+output = generateFancy(searchBody, opt);
+old = redirect(indexRoot + "/templates/sorch.html");
+print(output);
+// Restore stdout
 os.file.close(redirect(old));

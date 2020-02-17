@@ -82,11 +82,10 @@ class BackendRouter {
     }
   }
 
-  async msg_init({ name }) {
-    const treeName = name;
+  async msg_init({ treeName }) {
     this.searchDriver = new SearchDriver({ treeName });
 
-    this.db = new BackendDB({ name });
+    this.db = new BackendDB({ name: treeName });
 
     const { globals, sessionThings } = await this.db.init();
     return { globals, sessionThings };

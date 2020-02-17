@@ -1106,3 +1106,11 @@ body.old-rev #fixed-header .search-box {
 .searchfox-popup-root {
   box-sizing: border-box;
 }
+
+/* This div exists as a place for other static searchfox source pages to be
+ * loaded as iframes so that the HTML can asynchronously be parsed off the main
+ * thread.
+ */
+#searchfox-iframe-loader {
+  display: none;
+}

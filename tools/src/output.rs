@@ -276,6 +276,7 @@ pub fn generate_footer(
         "panel.js",
         "code-highlighter.js",
         "blame.js",
+        "/ui/searchfox-ui.bundle.js",
     ];
     let script_tags: Vec<_> = scripts
         .iter()

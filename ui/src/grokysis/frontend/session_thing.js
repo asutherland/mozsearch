@@ -12,7 +12,7 @@
  *   made by other sheets.
  */
 export default class SessionThing {
-  constructor(track, id, type, binding, persisted, sessionMeta) {
+  constructor(track, id, type, binding, persisted, sessionMeta, ingestArgs) {
     this.id = id;
     this.track = track;
     this.type = type;
@@ -28,7 +28,7 @@ export default class SessionThing {
     this.model = null;
 
     // Only now, at the end of initialization, can we make our thing.
-    this.model = this.binding.makeModel(this, persisted);
+    this.model = this.binding.makeModel(this, persisted, ingestArgs);
   }
 
   makeLabel() {

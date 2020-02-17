@@ -54,9 +54,11 @@ function boundsIntersect(a, b) {
  *
  */
 export default class KnowledgeBase {
-  constructor({ name, grokCtx }) {
-    this.name = name;
+  constructor({ treeName, grokCtx, iframeParentElem }) {
+    this.treeName = treeName;
     this.grokCtx = grokCtx;
+
+    this.iframeParentElem = iframeParentElem;
 
     /**
      * Maps from a (pretty) id to the Set of symbols known to correspond to that
@@ -229,23 +231,59 @@ export default class KnowledgeBase {
    * Synchronously lookup the given source file, creating it if it does not
    * exist, and optionally initiating async analysis via `ensureFileAnalysis`.
    */
-  lookupSourceFile(path, doAnalyze, considerHeaderFile) {
+  lookupSourceFile(path, { analyze, considerHeaderFile, loadDom }) {
     let fi = this.filesByPath.get(path);
-    if (fi) {
-      if (doAnalyze && !fi.analyzed && !fi.analyzing) {
-        this.ensureFileAnalysis(fi, considerHeaderFile);
-      }
-      return fi;
+    if (!fi) {
+      fi = new FileInfo({ path });
+      this.filesByPath.set(path, fi);
     }
 
-    fi = new FileInfo({ path });
-    this.filesByPath.set(path, fi);
-
-    if (doAnalyze) {
+    if (analyze && !fi.analyzed && !fi.analyzing) {
       this.ensureFileAnalysis(fi, considerHeaderFile);
+    }
+    if (loadDom && !fi.domTree && !fi.domLoading) {
+      this._loadFileDom(fi);
     }
 
     return fi;
+  }
+
+  /**
+   * Trigger the async loading of a source page, resulting in
+   * `fileInfo.domTree` being populated with a same-document DOM node
+   * corresponding to the #content element in the file.  Its `fileAnalysisData`
+   * and `fileSymInfo` will also be initialized with the iframe's
+   * `ANALYSIS_DATA` and `SYM_INFO` globals, which are part of the payload
+   * script tag (which will be removed from #content element).
+   *
+   * TODO: Probably a good idea to verify the file exists before doing this.
+   */
+  async _loadFileDom(fileInfo) {
+    fileInfo.domLoading = true;
+
+    const ifr = document.createElement('iframe');
+    const loadPromise = new Promise((resolve) => {
+      ifr.addEventListener(resolve, 'load', { once: true });
+    });
+    ifr.src = `/${this.treeName}/source/${fileInfo.path}`;
+    this.iframeParentElem.appendChild(ifr);
+    await loadPromise;
+
+    const idoc = ifr.contentDocument;
+    const iwin = ifr.contentWindow;
+
+    fileInfo.fileAnalysisData = iwin.ANALYSIS_DATA;
+    fileInfo.fileSymInfo = iwin.SYM_INFO;
+
+    const icontent = idoc.getElementById('content');
+    // Remove the script tag that gave us those cool globals.
+    const byeScript = icontent.querySelector('script');
+    byeScript.parentNode.removeChild(byeScript);
+
+    fileInfo.domTree = document.adoptNode(icontent);
+    this.iframeParentElem.removeChild(ifr);
+
+    fileInfo.markDirty();
   }
 
   /**
@@ -484,7 +522,12 @@ export default class KnowledgeBase {
               const path = pathLinesArray[0].path;
               // Only analyze the file if we would analyze our related symbols.
               symInfo.sourceFileInfo =
-                this.lookupSourceFile(path, analyzeHopsInclusive > 1, true);
+                this.lookupSourceFile(
+                  path,
+                  {
+                    analyze: analyzeHopsInclusive > 1,
+                    considerHeader: true
+                  });
               symInfo.sourceFileInfo.fileSymbolDefs.add(symInfo);
               symInfo.sourceFileInfo.markDirty();
             }
@@ -493,11 +536,13 @@ export default class KnowledgeBase {
               const line = pathLinesArray[0].lines[0];
               if (line.peekLines) {
                 symInfo.defPeek = line.peekLines;
+                symInfo.defLocation = { lno: line.lno, bounds: line.bounds };
               }
             }
           }
           else if (useType === 'decls') {
-            // XXX this will largely get confused by forwards
+            // We now have a useType of 'forwards', so this should largely be
+            // valid, at least for C++.
             if (pathLinesArray.length === 1 && !symInfo.declFileInfo) {
               const path = pathLinesArray[0].path;
               // Because of the potential for this to be a meaningless forward,
@@ -507,7 +552,8 @@ export default class KnowledgeBase {
               // TODO: Once the analyzers know hot to generate "forward" types,
               // or we add a regexp heuristic to this logic block, reconsider
               // doing what we do for def's.
-              symInfo.declFileInfo = this.lookupSourceFile(path, false);
+              symInfo.declFileInfo = this.lookupSourceFile(
+                path, { analyze: false });
               symInfo.declFileInfo.fileSymbolDecls.add(symInfo);
               symInfo.declFileInfo.markDirty();
             }
@@ -517,6 +563,7 @@ export default class KnowledgeBase {
               if (line.peekLines) {
                 symInfo.declPeek = line.peekLines;
               }
+              symInfo.declLocation = { lno: line.lno, bounds: line.bounds };
             }
           }
           else if (useType === 'uses' && pathLinesArray.length < MAX_USE_PATHLINES_LIMIT) {

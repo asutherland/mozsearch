@@ -4,7 +4,7 @@ const CleanWebpackPlugin = require('clean-webpack-plugin');
 module.exports = {
   mode: 'production',
   entry: {
-    'searchfox-ui': './src/grok-ui/searchfox-ui.js',
+    'searchfox-ui': './src/grok-ui/searchfox-ui-maybe.js',
   },
   devtool: 'source-map',
   devServer: {

@@ -28,10 +28,11 @@ export default class SearchResultsSheet extends DirtyingComponent {
 }
 
 export class SearchResultsModel {
-  constructor(sessionThing, { searchText }) {
-    this.searchText = searchText;
+  constructor(sessionThing, { queryParams }, filteredResults) {
+    this.searchText = queryParams.q;
 
-    this.filteredResults = sessionThing.grokCtx.performSyncSearch(searchText);
+    this.filteredResults =
+      filteredResults || sessionThing.grokCtx.performSyncSearch(queryParams);
   }
 
   destroy() {
@@ -41,8 +42,21 @@ export class SearchResultsModel {
 export let SearchResultsBinding = {
   icon: 'search',
   spawnable: 'Search Results',
-  makeModel(sessionThing, persisted) {
-    return new SearchResultsModel(persisted);
+  /**
+   * @param ingestArgs
+   *   Provided by the searchfox-ui page bootstrapping logic where the search
+   *   results are already included in the page.  Because the web server knows
+   *   how to cache the page and these results, it still makes sense to support
+   *   this path even though we could just fetch() the search (which the server
+   *   could also cache).  It's probably worth revisiting this.
+   */
+  makeModel(sessionThing, persisted, ingestArgs) {
+    let filteredResults;
+    if (ingestArgs) {
+      filteredResults =
+        sessionThing.grokCtx.ingestExistingSearchResults(ingestArgs);
+    }
+    return new SearchResultsModel(sessionThing, persisted, filteredResults);
   },
 
   makeLabelForModel(sessionThing, model) {

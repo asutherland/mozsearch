@@ -41,6 +41,20 @@ export default class FileInfo extends EE {
      */
     this.lineToSymbolBounds = [];
     this.dataIndexToSymbolBounds = [];
+
+    this.domLoading = false;
+    /**
+     * The #content node from the source file, if loaded.
+     */
+    this.domTree = null;
+    /**
+     * The ANALYSIS_DATA from the source file, if loaded.
+     */
+    this.fileAnalysisData = null;
+    /**
+     * The SYM_INFO from the source file, if loaded.
+     */
+    this.fileSymInfo = null;
   }
 
   markDirty() {

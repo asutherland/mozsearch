@@ -26,6 +26,7 @@ import { BlocklyDiagramEditorBinding } from './components/sheets/blockly_diagram
 import { SearchFieldBinding } from './components/sheets/search_field.jsx';
 import { SearchResultsBinding } from './components/sheets/search_results.jsx';
 import { SymbolContextSheetBinding } from './components/sheets/symbol_context.jsx';
+import { StaticSourceViewBinding } from './components/sheets/static_source_view.jsx';
 
 import KBSymbolInfoPopup from './components/popups/kb_symbol_info.jsx';
 
@@ -35,13 +36,20 @@ import { markdownRenderFromDOM } from './markdown-render.js';
 
 import 'semantic-ui-css/semantic.min.css';
 
+let gIframeParentElem = null;
+
 function makeGrokContext() {
   const treeName = document.location.pathname.split('/')[1];
 
+  const iframeParentElem = document.createElement('div');
+  iframeParentElem.id = 'searchfox-iframe-loader';
+  document.body.appendChild(iframeParentElem);
+
   const outerGrokCtx = window.GROK_CTX = new GrokAnalysisFrontend({
     session: {
-      name: treeName,
-      tracks: ['top', 'source'],
+      treeName,
+      iframeParentElem,
+      tracks: ['top', 'content'],
       defaults: {
         top: [
           {
@@ -55,11 +63,18 @@ function makeGrokContext() {
             persisted: {}
           }
         ],
-        source: []
+        content: []
       },
 
       perTrackSettings: {
         top: {
+          // The current per-tree persistence granularity is quite unpleasant
+          // as it relates to diagrams, but for now it's better to persist than
+          // not persist.
+          // TODO: Clean up the UX around persistence and sessions.  Being aware
+          // of other open tabs and that things are displayed in them is
+          // probably ideal.
+          persist: true,
           populateSearchAddThingArgs: (searchText) => {
             return {
               type: 'searchResult',
@@ -69,6 +84,12 @@ function makeGrokContext() {
               },
             };
           }
+        },
+        content: {
+          // The content track is substantially characterized by the URL so
+          // there's no need to persist any of it.  We can move to persisting
+          // things in the history API's state, but that's future work.
+          persist: false
         }
       },
 
@@ -97,28 +118,17 @@ function makeGrokContext() {
         diagram: DiagramSheetBinding,
         blocklyDiagram: BlocklyDiagramEditorBinding,
         symbolContext: SymbolContextSheetBinding,
-
-        // sentinel sourceView thing.
-        sourceView: {
-          makeModel() {
-            return null;
-          }
-        }
+        sourceView: StaticSourceViewBinding,
       }
     }
   });
 
-  gSourceSessionThing =
-    outerGrokCtx.sessionManager.tracks.source.ensureThing(
-      { type: 'sourceView', persisted: {} }
-    );
-
   return outerGrokCtx;
 }
 
-let gSourceSessionThing = null;
-const gGrokCtx = makeGrokContext();
 
+const gGrokCtx = makeGrokContext();
+const gContentTrack = gGrokCtx.sessionManager.tracks['content'];
 
 function symbolsFromString(symbols) {
   if (!symbols || symbols === "?") { // unclear what the "?" was for
@@ -269,7 +279,10 @@ function onSourceMouseMove(evt) {
     gHighlighter.stopHighlightingGroup("hovered");
   }
 
-  gSourceSessionThing.broadcastMessage('sourceView', 'hovered', { symInfo });
+  if (gContentTrack && gContentTrack.selectedThing) {
+    gContentTrack.selectedThing.broadcastMessage(
+      'sourceView', 'hovered', { symInfo });
+  }
 }
 
 /**
@@ -285,10 +298,13 @@ function onSourceClick(evt) {
 
   evt.stopPropagation();
 
-  gSourceSessionThing.broadcastMessage('sourceView', 'clicked', { symInfo });
+  if (gContentTrack && gContentTrack.selectedThing) {
+    gContentTrack.selectedThing.broadcastMessage(
+      'sourceView', 'clicked', { symInfo });
+  }
 
   gGrokCtx.sessionManager.popupManager.showPopup(
-    gSourceSessionThing,
+    gContentTrack.selectedThing,
     "symbolInfo",
     {
       symInfo,
@@ -337,6 +353,104 @@ function createPopupWidget() {
 }
 createPopupWidget();
 
+class HistoryHelper {
+  constructor({ treeName, contentTrack }) {
+    this.treeName = treeName;
+    this.contentTrack = contentTrack;
+
+    this._bound_onPopState = this.onPopState.bind(this, 'window');
+    window.addEventListener('popstate', this._bound_onPopState);
+  }
+
+  parseSearchfoxPath(pathname) {
+    const pieces = pathname.split('/');
+    // 0 is the empty string because the pathname starts with '/'
+    const treeName = pieces[1];
+    const route = pieces[2];
+    const rest = pieces.slice(3).join('/');
+    return { treeName, route, rest };
+  }
+
+  getCurrentLocationState() {
+    const pathInfo = this.parseSearchfoxPath(window.location.pathname);
+    const queryParams =
+      Object.fromEntries(new URL(window.location).searchParams.entries());
+
+    return { pathInfo, queryParams };
+  }
+
+  buildSourceURL(path, line) {
+    return `/${this.treeName}/source/${path}${line ? ('#' + line) : ''}`;
+  }
+
+  buildSourceURLForSymbolDef(symInfo) {
+    // For now, this is just a direct line link, but in the future could have
+    // a more fancy hash encoding.
+    const path = symInfo.sourceFileInfo.path;
+    const line = symInfo.defLocation && symInfo.defLocation.lno;
+    return this.buildSourceURL(path, line);
+  }
+
+  buildSearchURLForString(str) {
+    return `/${this.treeName}/sorch?q=${encodeURIComponent(str)}`;
+  }
+
+  buildSearchURLForIdentifier(identifier) {
+    return `/${this.treeName}/sorch?q=id:${encodeURIComponent(identifier)}`;
+  }
+
+  buildSearchURLForSymbols(symbols) {
+    if (Array.isArray(symbols)) {
+      symbols = symbols.join(',');
+    }
+    return `/${this.treeName}/sorch?q=symbol:${encodeURIComponent(symbols)}`;
+  }
+
+  navigateTo(url) {
+    history.pushState({}, '', url);
+    this.onPopState('internal');
+  }
+
+  /**
+   * Called in response to both the user's use of the back/forward buttons as
+   * well as if our `navigateTo` helper is used.
+   */
+  onPopState(/* source */) {
+    const { pathInfo, queryParams } = this.getCurrentLocationState();
+
+    let thing;
+    switch (pathInfo.route) {
+      case 'source': {
+        thing = this.contentTrack.ensureThing({
+          type: 'sourceView',
+          persisted: {
+            path: pathInfo.rest,
+          },
+        });
+        break;
+      }
+
+      case 'search':
+      case 'sorch': {
+        thing = this.contentTrack.ensureThing({
+          type: 'searchResults',
+          persisted: {
+            queryParams
+          },
+        });
+        break;
+      }
+
+      default: {
+        break;
+      }
+    }
+
+    this.contentTrack.selectThing(thing);
+  }
+}
+
+let gHistoryHelper;
 let gSplit;
 /**
  * This converts the static page and its layout into a dynamic UI.  In general,
@@ -354,7 +468,7 @@ let gSplit;
  * toolbar on the left.
  *
  */
-function replaceSearchboxWithOverwhelmingComplexity() {
+function replaceUIWithOverwhelmingComplexity() {
   const headerElem = document.getElementById('fixed-header');
   const scrollingElem = document.getElementById('scrolling');
 
@@ -375,6 +489,12 @@ function replaceSearchboxWithOverwhelmingComplexity() {
   // So long, old timey search UI!
   headerElem.textContent = '';
 
+  const contentTrack = gGrokCtx.sessionManager.tracks['content'];
+  gHistoryHelper = new HistoryHelper({
+    treeName: gGrokCtx.treeName,
+    contentTrack,
+  });
+
   const headerTags = (
     <SessionTabbedContainer
       grokCtx={ gGrokCtx }
@@ -391,7 +511,53 @@ function replaceSearchboxWithOverwhelmingComplexity() {
 
   ReactDOM.render(toolbarTags, toolboxElem);
 
-  // Setup the split.
+  // ## Pivot the existing source content into its FileInfo
+  const { pathInfo, queryParams } = gHistoryHelper.getCurrentLocationState();
+
+  if (pathInfo.route === 'source') {
+    const fileInfo = gGrokCtx.kb.lookupSourceFile(pathInfo.rest, {});
+    fileInfo.domTree = document.getElementById('content');
+    fileInfo.fileAnalysisData = window.ANALYSIS_DATA;
+    fileInfo.fileSymInfo = window.SYM_INFO;
+    // Remove the script tag that got us the above globals, we've saved them off
+    // and don't need them again.
+    const byeScript = fileInfo.domTree.querySelector('script');
+    byeScript.parentNode.removeChild(byeScript);
+
+    contentTrack.addThing(null, null, {
+      type: 'sourceView',
+      persisted: {
+        path: fileInfo.path,
+      }
+    });
+  } else if (pathInfo.route === 'sorch') {
+    // The script tag and everything inside it will fall away when the content
+    // elem is removed for this case.  We don't bother saving off the content
+    // since all it contained of use was this global.
+    const rawResults = window.SEARCH_RESULTS;
+    contentTrack.addThing(null, null, {
+      type: 'searchResults',
+      persisted: {
+        queryParams,
+      },
+      ingestArgs: {
+        rawResults
+      },
+    });
+  }
+
+  const oldContentElem = document.getElementById('content');
+  const newContentContainer = document.createElement('div');
+  oldContentElem.parentNode.replaceChild(newContentContainer, oldContentElem);
+
+  const contentTags = (
+    <SessionTabbedContainer
+      grokCtx={ gGrokCtx }
+      trackName="content" />
+  );
+  ReactDOM.render(contentTags, newContentContainer);
+
+  // ## Setup the split.
   gSplit = Split(
     [headerElem, scrollingElem],
     {
@@ -399,11 +565,11 @@ function replaceSearchboxWithOverwhelmingComplexity() {
       minSize: [180, 200],
       sizes: [30, 70],
       onDragEnd: () => {
-        gSourceSessionThing.broadcastMessage('window', 'resize', {});
+        gContentTrack.selectedThing.broadcastMessage('window', 'resize', {});
       }
     });
 }
-replaceSearchboxWithOverwhelmingComplexity();
+replaceUIWithOverwhelmingComplexity();
 
 async function onLoad() {
   const filename = document.location.pathname.split('/').slice(-1)[0];

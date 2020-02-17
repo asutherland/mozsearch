@@ -16,7 +16,7 @@ class GrokAnalysisFrontend {
    * probably want to pick a single app-specific name and hardcode it.
    */
   constructor({ session }) {
-    this.name = session.name;
+    this.treeName = session.treeName;
 
     this.sessionManager = new SessionManager(
       session, this,
@@ -28,8 +28,9 @@ class GrokAnalysisFrontend {
       });
 
     this.kb = new KnowledgeBase({
-      name: this.name,
-      grokCtx: this
+      treeName: this.treeName,
+      grokCtx: this,
+      iframeParentElem: session.iframeParentElem,
     });
 
     const { backend, useAsPort } = makeBackend();
@@ -46,7 +47,7 @@ class GrokAnalysisFrontend {
     this._sendAndAwaitReply(
       "init",
       {
-        name: this.name
+        treeName: this.treeName
       }).then((initData) => {
         this._initCompleted(initData);
       });
@@ -131,6 +132,13 @@ class GrokAnalysisFrontend {
   performSyncSearch(searchStr) {
     const filtered = new FilteredResults({ rawResultsList: [] });
     this._performAsyncSearch(searchStr, filtered);
+    return filtered;
+  }
+
+  ingestExistingSearchResults(rawSearchResults) {
+    const filtered = new FilteredResults({
+      rawResultsList: [rawSearchResults],
+    });
     return filtered;
   }
 

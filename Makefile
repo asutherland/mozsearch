@@ -37,14 +37,14 @@ build-test-repo: check-in-vagrant build-clang-plugin build-rust-tools build-ui
 check-test-repo:
 	/vagrant/infrastructure/web-server-check.sh /vagrant/tests ~/index "http://localhost/"
 
-build-searchfox-repo: check-in-vagrant build-clang-plugin build-rust-tools
+build-searchfox-repo: check-in-vagrant build-clang-plugin build-rust-tools build-ui
 	mkdir -p ~/searchfox-index
 	/vagrant/infrastructure/indexer-setup.sh /vagrant/tests searchfox-config.json ~/searchfox-index
 	/vagrant/infrastructure/indexer-run.sh /vagrant/tests ~/searchfox-index
 	/vagrant/infrastructure/web-server-setup.sh /vagrant/tests searchfox-config.json ~/searchfox-index ~
 	/vagrant/infrastructure/web-server-run.sh /vagrant/tests ~/searchfox-index ~
 
-build-mozilla-repo: check-in-vagrant build-clang-plugin build-rust-tools
+build-mozilla-repo: check-in-vagrant build-clang-plugin build-rust-tools build-ui
 	[ -d ~/mozilla-config ] || git clone https://github.com/mozsearch/mozsearch-mozilla ~/mozilla-config
 	mkdir -p ~/mozilla-index
 	/vagrant/infrastructure/indexer-setup.sh ~/mozilla-config config1.json ~/mozilla-index

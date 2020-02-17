@@ -16,7 +16,7 @@ export default class SessionTrack extends EE {
     this.manager = manager;
     this.name = name;
     this.trackSettings = trackSettings;
-    
+
     this.things = [];
 
     /**
@@ -108,21 +108,50 @@ export default class SessionTrack extends EE {
     this.emit('dirty', this);
   }
 
-  /**
-   * Make sure there's a thing in this track.  In the future this might be used
-   * to make sure a specific type of thing exists, but for now it's just a hack
-   * to provide for a SessionThing for the searchfox source code listing which
-   * does not currently live in a SessionThing.
-   */
-  ensureThing(params) {
-    if (this.things.length) {
-      return this.things[0];
+  _recursiveMatch(matchParams, obj) {
+    for (const [key, value] of Object.entries(matchParams)) {
+      if (typeof(value) === 'object') {
+        if (!this._recursiveMatch(value, obj[key])) {
+          return false;
+        }
+      } else if (obj[key] !== value) {
+        return false;
+      }
     }
-    return this.addThing(null, null, params);
+    return true;
+  }
+
+  /**
+   * Ensure that there's a thing in this track that matches `matchParams`,
+   * returning it if so.  If nothing matches, add a thing using the provided
+   * `spawnParams`.
+   *
+   * The following fields are honored by `matchParams`:
+   * - type: Actually required.
+   * - persisted: Recursive
+   */
+  ensureThing(matchParams, spawnParams) {
+    if (!spawnParams) {
+      spawnParams = matchParams;
+    }
+    if (this.things.length) {
+      for (const thing of this.things) {
+        if (thing.type !== matchParams.type) {
+          continue;
+        }
+        if (matchParams.persisted) {
+          if (!this._recursiveMatch(matchParams.persisted, thing.persisted)) {
+            continue;
+          }
+        }
+        return { existed: true, thing };
+      }
+    }
+    return { existed: false, thing: this.addThing(null, null, spawnParams) };
   }
 
   addThing(relThing, useId,
-           { position, type, persisted, sessionMeta, restored }) {
+           { position, type, persisted, sessionMeta, restored, ingestArgs }) {
     if (!useId) {
       // (an id of 0 is never used, so we won't ambiguously end up in here)
       useId = this.manager.allocId();
@@ -163,7 +192,8 @@ export default class SessionTrack extends EE {
     }
 
     const thing =
-      new SessionThing(this, useId, type, binding, persisted, sessionMeta);
+      new SessionThing(this, useId, type, binding, persisted, sessionMeta,
+                       ingestArgs);
     this.things.splice(targetIdx, 0, thing);
     // Write-through to the database if this didn't come from the database.
     if (!restored) {
@@ -174,7 +204,10 @@ export default class SessionTrack extends EE {
       this._updatePersistedThingsBecauseOfOrderingChange();
     }
 
-    if (thing.sessionMeta.selected) {
+    // Select thig is the meta says it should be selected, or if this is the
+    // first thing added to the track (which can then be clobbered by
+    // sessionMeta.)
+    if (thing.sessionMeta.selected || this.things.length === 1) {
       this.selectedThing = thing;
     }
 
@@ -201,6 +234,10 @@ export default class SessionTrack extends EE {
   }
 
   updatePersistedState(thing, newState, sessionMeta) {
+    if (!this.trackSettings.persist) {
+      return;
+    }
+
     this.manager.updatePersistedState(this, thing, newState, sessionMeta);
   }
 

@@ -138,6 +138,7 @@ export class SessionTabbedToolbar extends DirtyingComponent {
               </Dropdown>
             }
             />
+          &nbsp;
       </div>
     );
   }

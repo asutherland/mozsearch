@@ -73,8 +73,6 @@ export default class SymbolInfo extends EE {
 
     this.fullyQualifiedParts = [];
 
-    this.defLocation = defLocation || null;
-
     this.typeLetter = '?';
     this.semanticKind = 'unknown';
     this.implKind = 'impl';
@@ -113,16 +111,7 @@ export default class SymbolInfo extends EE {
     this.targetSym = null;
     this.idlSym = null;
 
-    /**
-     * The peek string for the declaration for this symbol, if there was only
-     * one declaration.
-     */
-    this.declPeek = null;
-    /**
-     * The peek string for the definition for this symbol, if there was only one
-     * definition.
-     */
-    this.defPeek = null;
+
 
     /**
      * Indicates if we believe this symbol to be unimportant to understanding
@@ -148,24 +137,36 @@ export default class SymbolInfo extends EE {
     this.callsOutTo = null;
     this.receivesCallsFrom = null;
 
+    /**
+     * Tracks the last `serial` for which `callsOutTo` and `receivesCallsFrom`
+     * were derived from outEdges/inEdges.
+     */
     this._callsLastFilteredSerial = -1;
 
-    /**
-     * HTML document fragment containing the declaration/prototype for the
-     * symbol.
-     */
-    this.declFragment = null;
-    this.declFileInfo = null;
 
     /**
-     * HTML document fragment containing the source/definition for the method.
+     * The peek string for the declaration for this symbol, if there was only
+     * one declaration.
      */
-    this.sourceFragment = null;
+    this.declPeek = null;
     /**
-     * The FileInfo where the definition for this symbol was found.  This is
-     * essential to be able to resolve data-i references.
+     * The FileInfo where the sole declaration for this symbol was found.
+     */
+    this.declFileInfo = null;
+    /** { lno, bounds } for the declaration. */
+    this.declLocation = null;
+
+    /**
+     * The peek string for the definition for this symbol, if there was only one
+     * definition.
+     */
+    this.defPeek = null;
+    /**
+     * The FileInfo where the definition for this symbol was found.
      */
     this.sourceFileInfo = null;
+    /** { lno, bounds } for the declaration. */
+    this.defLocation = null;
 
     if (prettyName) {
       this.updatePrettyNameFrom(
