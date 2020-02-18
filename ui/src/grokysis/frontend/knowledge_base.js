@@ -661,6 +661,10 @@ export default class KnowledgeBase {
    * way that makes it easier to avoid worst-case diagram re-creation scenarios.
    */
   ensureDiagram(symInfo, diagramType) {
+    // TODO: make the diagrams smart enough to invalidate themselves as symbols
+    // of interest dirty themselves.
+    return this.diagramSymbol(symInfo, diagramType);
+    /*
     if (symInfo.__cachedDiagrams && symInfo.__cachedDiagrams[diagramType]) {
       return symInfo.__cachedDiagrams[diagramType];
     }
@@ -670,6 +674,7 @@ export default class KnowledgeBase {
     const diagram = symInfo.__cachedDiagrams[diagramType] =
       this.diagramSymbol(symInfo, diagramType);
     return diagram;
+    */
   }
 
   /**

@@ -3,10 +3,35 @@
   display: flex;
   flex-direction: row;
   max-height: 100%;
+  min-height: 100%;
 }
 
 .symbolContextCard.card {
   width: auto !important;
   max-width: none !important;
   margin: .875em .5em !important;
+}
+
+.symbolContextDivider {
+  position: relative;
+  background-color: gray;
+  width: 2rem;
+  flex-grow: 0;
+  flex-shrink: 0;
+}
+
+.symbolContextDivider__label {
+  color: white;
+  font-size: 1rem;
+  padding: 0.2rem;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  transform: rotate(270deg);
+  transform-origin: 0 0;
+}
+
+.symbolContextCard {
+  flex-grow: 0;
+  flex-shrink: 0;
 }

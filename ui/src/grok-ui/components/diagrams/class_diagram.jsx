@@ -15,7 +15,9 @@ export default class ClassDiagram extends DirtyingComponent {
       const diagram = this.props.diagram;
       const grokCtx = diagram.grokCtx;
       const { dot, settings, fixupSVG } = diagram.lowerToGraphviz();
-      //console.log('rendering DOT:\n' + dot);
+      if (window.DEBUG_DIAGRAM) {
+        console.log('rendering DOT:\n' + dot);
+      }
       grokCtx.vizJs.renderString(dot, {
         engine: settings.engine,
         format: "svg",

@@ -38,15 +38,24 @@ export class SymbolContextSheet extends DirtyingComponent {
     const symInfo = this.props.model.symInfo || {};
     const grokCtx = this.props.model.sessionThing.grokCtx;
 
-    let maybeSummaryCard;
-    let maybeDeclCard;
-    let maybeDefCard;
-    let maybeHierarchyDiagram;
+    let nodes = [];
+
+    const emitInfo = (label, id, card) => {
+      nodes.push(
+        <div
+          key={ `${id}-divider` }
+          className="symbolContextDivider">
+          <div className="symbolContextDivider__label">{ label }</div>
+        </div>
+      );
+      nodes.push(card);
+    };
 
     // # Summary Card
     if (symInfo.fullName) {
-      maybeSummaryCard = (
+      emitInfo('Summary', 'summary',
         <Card
+          key='summary-card'
           className="symbolContextCard"
           color="orange"
           >
@@ -71,13 +80,13 @@ export class SymbolContextSheet extends DirtyingComponent {
         );
       }
 
-      maybeDeclCard = (
+      emitInfo('Declaration', 'decl',
         <Card
+          key="decl-card"
           className="symbolContextCard"
           color="orange"
           >
           <Card.Content>
-            <Card.Header>Declaration</Card.Header>
             { maybePath }
             <Card.Description>
               <pre>{ symInfo.declPeek }</pre>
@@ -98,13 +107,13 @@ export class SymbolContextSheet extends DirtyingComponent {
         );
       }
 
-      maybeDefCard = (
+      emitInfo('Definition', 'def',
         <Card
+          key="def-card"
           className="symbolContextCard"
           color="yellow"
           >
           <Card.Content>
-            <Card.Header>Definition</Card.Header>
             { maybePath }
             <Card.Description>
               <pre>{ symInfo.defPeek }</pre>
@@ -116,8 +125,9 @@ export class SymbolContextSheet extends DirtyingComponent {
 
     if (symInfo.supers || symInfo.subclasses) {
       const diagram = grokCtx.kb.ensureDiagram(symInfo, 'hierarchy');
-      maybeHierarchyDiagram = (
+      emitInfo('Hierarchy', 'hierarchy',
         <ClassDiagram
+          key='hierarchy-card'
           diagram={ diagram }
           shrinkToFit={ true }
           />
@@ -129,10 +139,7 @@ export class SymbolContextSheet extends DirtyingComponent {
         className="symbolContextSheet"
         key={ symInfo.rawName }
         >
-        { maybeSummaryCard }
-        { maybeDeclCard }
-        { maybeDefCard }
-        { maybeHierarchyDiagram }
+        { nodes }
       </div>
     );
   }

@@ -141,10 +141,12 @@ function symbolsFromString(symbols) {
  * Given a DOM node, find its jumps, searches, symbols, symInfo.  A
  * destructurable result is always returned, everything may just be null.
  */
-function semanticInfoFromTarget(target) {
+function semanticInfoFromTarget(target, ancestorCheck) {
   let jumps = null, searches = null, symbolNames = null;
   let rawMetaInfo = null, symInfo = null, visibleTokenText = null;
   let nestingSymInfo = null;
+
+  let inAncestor = ancestorCheck && target.closest(ancestorCheck) && true;
 
   const win = target.ownerDocument.defaultView;
 
@@ -188,7 +190,7 @@ function semanticInfoFromTarget(target) {
   }
 
   return { jumps, searches, symbolNames, rawMetaInfo, symInfo, visibleTokenText,
-           nestingSymInfo };
+           nestingSymInfo, inAncestor };
 }
 
 
@@ -268,8 +270,8 @@ const gHighlighter = new SymbolHighlighter();
 function onSourceMouseMove(evt) {
   // We only want the "symbols" for hover highlighting, but we do desire the
   // side-effect of the `symInfo` lookup occurring.
-  const { symbolNames, symInfo, visibleTokenText } =
-    semanticInfoFromTarget(evt.target);
+  const { symbolNames, symInfo, visibleTokenText, inAncestor } =
+    semanticInfoFromTarget(evt.target, "#content");
 
   // Are we hovering anything?
   if (symbolNames) {
@@ -279,7 +281,11 @@ function onSourceMouseMove(evt) {
     gHighlighter.stopHighlightingGroup("hovered");
   }
 
-  if (gContentTrack && gContentTrack.selectedThing) {
+  // Only generate the hovered event if the ancestor check for "#content".
+  // This avoids insanity if the user is hovering over the context area.  (But
+  // we do intentionally do the highlighting above because the brushing effect
+  // is still useful in that case.)
+  if (inAncestor && gContentTrack && gContentTrack.selectedThing) {
     gContentTrack.selectedThing.broadcastMessage(
       'sourceView', 'hovered', { symInfo });
   }
@@ -289,8 +295,8 @@ function onSourceMouseMove(evt) {
  * Handle a click inside a source listing and display a menu.
  */
 function onSourceClick(evt) {
-  const { symInfo, nestingSymInfo, /*symbols, visibleTokenText*/ } =
-    semanticInfoFromTarget(evt.target);
+  const { symInfo, nestingSymInfo, inAncestor } =
+    semanticInfoFromTarget(evt.target, "#content");
 
   if (!symInfo) {
     return;
@@ -298,19 +304,24 @@ function onSourceClick(evt) {
 
   evt.stopPropagation();
 
+  // Somewhat opposite of the hover (onSourceMouseMove) case, we do want to emit
+  // the click event here for context purposes, but we don't want to trigger
+  // the menu / popup display.
   if (gContentTrack && gContentTrack.selectedThing) {
     gContentTrack.selectedThing.broadcastMessage(
       'sourceView', 'clicked', { symInfo });
   }
 
-  gGrokCtx.sessionManager.popupManager.showPopup(
-    gContentTrack.selectedThing,
-    "symbolInfo",
-    {
-      symInfo,
-      fromSymInfo: nestingSymInfo
-    },
-    evt.target);
+  if (inAncestor) {
+    gGrokCtx.sessionManager.popupManager.showPopup(
+      gContentTrack.selectedThing,
+      "symbolInfo",
+      {
+        symInfo,
+        fromSymInfo: nestingSymInfo
+      },
+      evt.target);
+  }
 }
 
 /**
