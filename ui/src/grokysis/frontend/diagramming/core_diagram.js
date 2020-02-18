@@ -235,7 +235,7 @@ export class HierBuilder {
              node.collapsedAncestors.length || node.edges.length > 0) {
       node.action = 'cluster';
       node.id = node.rankId = 'cluster_c' + (this.idCounter++);
-      node.edgeInId = node.edgeOutId = node.id;
+      node.edgeInId = node.edgeOutId = 'placeholder_' + node.id;
     }
     // If the number of internal edges are low and we've reached a class AND
     // there are children, then we can switch to being a table.
@@ -296,6 +296,7 @@ export class HierBuilder {
     } else if (node.action === 'cluster') {
       s += indentStr + `subgraph ${node.id} {\n${node.computeClusterStyling()}`;
       kidIndent += INDENT;
+      s += kidIndent + `${node.edgeInId} [shape=point style=invis]\n`;
       s += kidIndent + `label = "${node.computeLabel()}";\n\n`;
       wrapEnd = indentStr + '}\n';
     } else if (node.action === 'table') {
@@ -330,7 +331,22 @@ export class HierBuilder {
         if (!from.edgeOutId || !to.edgeInId) {
           continue;
         }
-        s += kidIndent + from.edgeOutId + ' -> ' + to.edgeInId + ` [style="${style}"];\n`;
+        s += kidIndent + from.edgeOutId + ' -> ' + to.edgeInId;
+        const attrBits = [];
+        if (from.action === 'cluster') {
+          attrBits.push(`ltail=${from.id}`);
+        }
+        if (to.action === 'cluster') {
+          attrBits.push(`lhead=${to.id}`);
+        }
+        if (style) {
+          attrBits.push(`style="${style}"`);
+        }
+        if (attrBits.length) {
+          s += `[${attrBits.join(', ')}]\n`;
+        } else {
+          s += '\n';
+        }
       }
     }
 
@@ -346,6 +362,7 @@ export class HierBuilder {
     }, '');
     const dot = `digraph "" {
   newrank = true;
+  compound = true;
   rankdir = "${this.settings.layoutDir}";
   fontname = "Arial";
   splines = spline;

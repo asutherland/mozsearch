@@ -35,7 +35,12 @@ export class SymbolContextSheet extends DirtyingComponent {
   }
 
   render() {
-    const symInfo = this.props.model.symInfo || {};
+    const symInfo = this.props.model.symInfo;
+
+    if (!symInfo) {
+      return <div></div>;
+    }
+
     const grokCtx = this.props.model.sessionThing.grokCtx;
 
     let nodes = [];
@@ -132,6 +137,20 @@ export class SymbolContextSheet extends DirtyingComponent {
           shrinkToFit={ true }
           />
       );
+    }
+
+    if (symInfo.outEdges.size || symInfo.inEdges.size) {
+      symInfo.ensureCallEdges();
+      if (symInfo.callsOutTo.size || symInfo.receivesCallsFrom.size) {
+        const diagram = grokCtx.kb.ensureDiagram(symInfo, 'method');
+        emitInfo('Local Calls', 'method',
+          <ClassDiagram
+            key='method-card'
+            diagram={ diagram }
+            shrinkToFit={ true }
+            />
+        );
+      }
     }
 
     return (
