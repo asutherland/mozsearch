@@ -187,8 +187,17 @@ export class SessionTabbedContainer extends DirtyingComponent {
       inactiveWidget = inactiveThing.makeWidget();
     }
 
+    let className = '';
+    // This is set to true for the top context box where we want it to clip its
+    // contents.  But we need to set it to false for the content box which is
+    // inside the #scrolling div which wants to scroll and be the closest
+    // stacking context.
+    if (this.props.selfClip) {
+      className = 'sessionTabbedContainer_tabs';
+    }
+
     return (
-      <div className="sessionTabbedContainer_tabs">
+      <div className={ className }>
           { activeWidget }
           { inactiveWidget }
       </div>

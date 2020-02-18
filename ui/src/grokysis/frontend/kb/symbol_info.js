@@ -28,7 +28,7 @@ const RE_JS_SYMBOL = /^(\w+#)*(\w+)#(\w+)$/;
  * - defLocation { path, lineInfo }
  */
 export default class SymbolInfo extends EE {
-  constructor({ rawName, defLocation, prettyName,
+  constructor({ rawName, prettyName,
                 somePath, headerPath, sourcePath, semanticKind }) {
     super();
 
@@ -111,8 +111,6 @@ export default class SymbolInfo extends EE {
     this.targetSym = null;
     this.idlSym = null;
 
-
-
     /**
      * Indicates if we believe this symbol to be unimportant to understanding
      * the program at a higher level.  For example, string manipulation code is
@@ -167,6 +165,10 @@ export default class SymbolInfo extends EE {
     this.sourceFileInfo = null;
     /** { lno, bounds } for the declaration. */
     this.defLocation = null;
+
+    // TODO: fix this an `KnowledgeBase.ensureDiagram` to actually know how to
+    // evict stuff from the cache.
+    this.__cachedDiagrams = null;
 
     if (prettyName) {
       this.updatePrettyNameFrom(
@@ -313,7 +315,7 @@ export default class SymbolInfo extends EE {
 
     this.fullName = prettyName;
     this.namespace = namespace;
-    this.simpleName = className + (methodName || '');
+    this.simpleName = className + (methodName ? `::${methodName}` : '');
     this.className = className;
     this.localName = methodName;
 

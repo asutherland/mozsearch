@@ -75,7 +75,7 @@ export default class KBSymbolInfo extends DirtyingComponent {
     panes.push({
       menuItem: 'Overview',
       render: () => {
-        const diagram = this.props.grokCtx.kb.diagramSymbol(symInfo, 'method');
+        const diagram = this.props.grokCtx.kb.ensureDiagram(symInfo, 'method');
 
         let maybeDecl;
         if (symInfo.declPeek) {

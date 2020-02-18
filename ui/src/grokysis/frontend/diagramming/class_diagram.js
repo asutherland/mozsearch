@@ -14,8 +14,8 @@ function bitCount (n) {
  *
  */
 export class AutoSymHierBuilder extends HierBuilder {
-  constructor() {
-    super();
+  constructor(settingOverrides) {
+    super(settingOverrides);
 
     this.symsToHierNodes = new Map();
   }
@@ -86,6 +86,8 @@ export default class ClassDiagram extends EE {
 
     // In the future diagrams should be able to be named.
     this.name = 'Diagram';
+
+    this.settingOverrides = null;
 
     this.serial = 0;
     this.batchDepth = 0;
@@ -420,7 +422,7 @@ export default class ClassDiagram extends EE {
    * above probably wants to move.
    */
   lowerToGraphviz() {
-    const builder = new AutoSymHierBuilder();
+    const builder = new AutoSymHierBuilder(this.settingOverrides);
 
     // ## Add all nodes
     for (const sym of this.nodes) {

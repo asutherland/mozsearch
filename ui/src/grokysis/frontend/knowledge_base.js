@@ -4,6 +4,7 @@ import FileAnalyzer from './kb/file_analyzer.js';
 
 import ClassDiagram from './diagramming/class_diagram.js';
 
+import HierarchyDoodler from './diagramming/hierarchy_doodler.js';
 import InternalDoodler from './diagramming/internal_doodler.js';
 import PathsBetweenDoodler from './diagramming/paths_between_doodler.js';
 
@@ -404,6 +405,7 @@ export default class KnowledgeBase {
     if (rawSymInfo.meta) {
       const meta = rawSymInfo.meta;
       symInfo.updateSemanticKindFrom(meta.kind);
+      symInfo.rawMeta = meta;
       if (symInfo.isCallable()) {
         // XXX it might also make sense to call this 'inferred-function' and
         // have isCallable aware of that magic type.
@@ -485,7 +487,7 @@ export default class KnowledgeBase {
       }
 
       if (meta.overriddenBy) {
-        symInfo.overridenBy = meta.overridenBy.map(rawSym => {
+        symInfo.overridenBy = meta.overriddenBy.map(rawSym => {
           const o = {};
           o.symInfo = this.lookupRawSymbol(rawSym, ensureAnalysisHops);
           return o;
@@ -643,8 +645,30 @@ export default class KnowledgeBase {
         doodler.doodleMethodInternalEdges(symInfo, diagram);
         break;
       }
+
+      case 'hierarchy': {
+        const doodler = new HierarchyDoodler();
+        doodler.doodleHierarchy(symInfo, diagram);
+        break;
+      }
     }
 
+    return diagram;
+  }
+
+  /**
+   * Hacky attempt at a mechanism to cache the results of `diagramSymbol` in a
+   * way that makes it easier to avoid worst-case diagram re-creation scenarios.
+   */
+  ensureDiagram(symInfo, diagramType) {
+    if (symInfo.__cachedDiagrams && symInfo.__cachedDiagrams[diagramType]) {
+      return symInfo.__cachedDiagrams[diagramType];
+    }
+    if (!symInfo.__cachedDiagrams) {
+      symInfo.__cachedDiagrams = {};
+    }
+    const diagram = symInfo.__cachedDiagrams[diagramType] =
+      this.diagramSymbol(symInfo, diagramType);
     return diagram;
   }
 

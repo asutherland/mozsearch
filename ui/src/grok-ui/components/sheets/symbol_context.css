@@ -1,0 +1,12 @@
+.symbolContextSheet {
+  padding: 0em 0.5em;
+  display: flex;
+  flex-direction: row;
+  max-height: 100%;
+}
+
+.symbolContextCard.card {
+  width: auto !important;
+  max-width: none !important;
+  margin: .875em .5em !important;
+}

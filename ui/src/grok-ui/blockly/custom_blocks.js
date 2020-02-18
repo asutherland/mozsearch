@@ -128,13 +128,21 @@ const setting_algo_def = {
       "name": "LAYOUT_DIR",
       "options": [
         [
+          "TB",
+          "TB"
+        ],
+        [
           "LR",
           "LR"
         ],
         [
-          "TD",
-          "TD"
-        ]
+          "BT",
+          "BT"
+        ],
+        [
+          "RL",
+          "RL"
+        ],
       ]
     },
     {

@@ -164,16 +164,17 @@ export class HierNode {
 // HierNodeGenerator (which subclasses this now), can use the node action logic
 // without running into the logic that assumes everything is a symbol.
 export class HierBuilder {
-  constructor() {
+  constructor(settingOverrides) {
     this.root = new HierNode(null, '', '', 0);
 
     // default algorithmic settings that will get mutated by any 'setting_algo'
     // block we see.  (And there could be multiple contradictory ones right
     // now.)
-    this.settings = {
-      layoutDir: 'TD',
-      engine: 'dot',
-    };
+    this.settings = Object.assign(
+      {
+        layoutDir: 'TB',
+        engine: 'dot',
+      }, settingOverrides);
 
     this.idCounter = 0;
     this.nodeIdToNode = new Map();

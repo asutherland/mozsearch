@@ -498,7 +498,9 @@ function replaceUIWithOverwhelmingComplexity() {
   const headerTags = (
     <SessionTabbedContainer
       grokCtx={ gGrokCtx }
-      trackName="top" />
+      trackName="top"
+      selfClip={ true }
+      />
   );
 
   ReactDOM.render(headerTags, headerElem);
@@ -567,7 +569,9 @@ function replaceUIWithOverwhelmingComplexity() {
   const contentTags = (
     <SessionTabbedContainer
       grokCtx={ gGrokCtx }
-      trackName="content" />
+      trackName="content"
+      selfClip={ false }
+      />
   );
   ReactDOM.render(contentTags, newContentContainer);
 
