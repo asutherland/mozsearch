@@ -1,12 +1,12 @@
 import EE from 'eventemitter3';
 import React from 'react';
 
-import { Card } from 'semantic-ui-react';
+import { Header } from 'semantic-ui-react';
 
 import DirtyingComponent from '../dirtying_component.js';
 
 import ClassDiagram from '../diagrams/class_diagram.jsx';
-
+import PathCrumbed from '../raw_details/path_crumbed.jsx';
 
 import './symbol_context.css';
 
@@ -59,18 +59,13 @@ export class SymbolContextSheet extends DirtyingComponent {
     // # Summary Card
     if (symInfo.fullName) {
       emitInfo('Summary', 'summary',
-        <Card
+        <div
           key='summary-card'
           className="symbolContextCard"
-          color="orange"
           >
-          <Card.Content>
-            <Card.Header>{ symInfo.simpleName }</Card.Header>
-            <Card.Meta>{ symInfo.fullName }</Card.Meta>
-            <Card.Description>
-            </Card.Description>
-          </Card.Content>
-        </Card>
+            <Header size="large">{ symInfo.simpleName }</Header>
+            <Header size="small">{ symInfo.fullName }</Header>
+        </div>
       );
     }
 
@@ -79,25 +74,21 @@ export class SymbolContextSheet extends DirtyingComponent {
       let maybePath;
       if (symInfo.declFileInfo) {
         maybePath = (
-          <Card.Meta>
-            { symInfo.declFileInfo.path }
-          </Card.Meta>
+          <PathCrumbed
+            path={ symInfo.declFileInfo.path }
+            location={ symInfo.declLocation }
+            />
         );
       }
 
       emitInfo('Declaration', 'decl',
-        <Card
+        <div
           key="decl-card"
           className="symbolContextCard"
-          color="orange"
           >
-          <Card.Content>
-            { maybePath }
-            <Card.Description>
-              <pre>{ symInfo.declPeek }</pre>
-            </Card.Description>
-          </Card.Content>
-        </Card>
+          { maybePath }
+          <pre>{ symInfo.declPeek }</pre>
+        </div>
       );
     }
 
@@ -106,25 +97,21 @@ export class SymbolContextSheet extends DirtyingComponent {
       let maybePath;
       if (symInfo.sourceFileInfo) {
         maybePath = (
-          <Card.Meta>
-            { symInfo.sourceFileInfo.path }
-          </Card.Meta>
+          <PathCrumbed
+            path={ symInfo.sourceFileInfo.path }
+            location={ symInfo.defLocation }
+            />
         );
       }
 
       emitInfo('Definition', 'def',
-        <Card
+        <div
           key="def-card"
           className="symbolContextCard"
-          color="yellow"
           >
-          <Card.Content>
-            { maybePath }
-            <Card.Description>
-              <pre>{ symInfo.defPeek }</pre>
-            </Card.Description>
-          </Card.Content>
-        </Card>
+          { maybePath }
+          <pre>{ symInfo.defPeek }</pre>
+        </div>
       );
     }
 

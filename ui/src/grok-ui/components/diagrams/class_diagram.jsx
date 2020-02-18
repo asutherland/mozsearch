@@ -33,12 +33,14 @@ export default class ClassDiagram extends DirtyingComponent {
         container.innerHTML = svgStr;
         if (this.props.shrinkToFit) {
           const svgElem = container.firstElementChild;
+          const boxUnits =
+            svgElem.getAttribute('viewBox').split(' ').map(x => parseFloat(x));
           svgElem.removeAttribute('width');
           svgElem.removeAttribute('height');
           svgElem.setAttribute(
             "preserveAspectRatio", "xMinYMin meet");
           svgElem.setAttribute(
-            "style", "width: 100%; height: 100%;");
+            "style", `width: 100%; height: 100%; max-width: ${boxUnits[2]}px;`);
         }
       });
     }
