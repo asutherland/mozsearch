@@ -22,8 +22,8 @@ use self::rustc_serialize::json::Object;
 
 extern crate tools;
 use tools::file_format::analysis::{
-    parse_location, read_analyses, read_source, read_structured, read_target, AnalysisSource,
-    WithLocation,
+    read_analyses, read_source, read_structured, read_target, AnalysisSource,
+    Location, WithLocation,
 };
 
 fn main() {
@@ -43,26 +43,24 @@ fn main() {
 
     let src_data = read_analyses(
         &args,
-        &mut |obj: &mut Object| {
+        &mut |obj: &mut Object, loc: &Location| {
             // return source objects for so that they come out of `read_analyses` for
             // additional processing below.
-            if let Some(src) = read_source(obj) {
+            if let Some(src) = read_source(obj, loc) {
                 return Some(src);
             }
             // for target objects, just print them back out, but use the `unique_targets`
             // hashset to deduplicate them.
-            if let Some(tgt) = read_target(obj) {
-                let loc = parse_location(obj.get("loc").unwrap().as_string().unwrap());
-                let target_str = format!("{}", WithLocation { data: tgt, loc });
+            if let Some(tgt) = read_target(obj, loc) {
+                let target_str = format!("{}", WithLocation { data: tgt, loc: loc.clone() });
                 if !unique_targets.contains(&target_str) {
                     println!("{}", target_str);
                     unique_targets.insert(target_str);
                 }
             }
             // for structured objects, same deal as targets, de-duplicate with a hashset.
-            if let Some(structured) = read_structured(obj) {
-                let loc = parse_location(obj.get("loc").unwrap().as_string().unwrap());
-                let structured_str = format!("{}", WithLocation { data: structured, loc });
+            if let Some(structured) = read_structured(obj, loc) {
+                let structured_str = format!("{}", WithLocation { data: structured, loc: loc.clone() });
                 if !unique_structured.contains(&structured_str) {
                     println!("{}", structured_str);
                     unique_structured.insert(structured_str);

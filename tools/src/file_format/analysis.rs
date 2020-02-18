@@ -402,7 +402,7 @@ fn parse_source_range(range: &str) -> SourceRange {
 
 pub fn read_analysis<T>(
     filename: &str,
-    filter: &mut dyn FnMut(&mut Object) -> Option<T>,
+    filter: &mut dyn FnMut(&mut Object, &Location) -> Option<T>,
 ) -> Vec<WithLocation<Vec<T>>> {
     read_analyses(vec![filename.to_string()].as_slice(), filter)
 }
@@ -413,7 +413,7 @@ pub fn read_analysis<T>(
 /// types being ignored.
 pub fn read_analyses<T>(
     filenames: &[String],
-    filter: &mut dyn FnMut(&mut Object) -> Option<T>,
+    filter: &mut dyn FnMut(&mut Object, &Location) -> Option<T>,
 ) -> Vec<WithLocation<Vec<T>>> {
     let mut result = Vec::new();
     for filename in filenames {
@@ -444,7 +444,7 @@ pub fn read_analyses<T>(
             // Destructively pull the "loc" out before passing it into the filter.  This is for
             // read_structured which stores everything it doesn't directly process in `payload`.
             let loc = parse_location(obj.remove("loc").unwrap().as_string().unwrap());
-            match filter(obj) {
+            match filter(obj, &loc) {
                 Some(v) => {
                     result.push(WithLocation { data: v, loc: loc })
                 }
@@ -490,7 +490,7 @@ pub fn read_analyses<T>(
     result2
 }
 
-pub fn read_target(obj: &mut Object) -> Option<AnalysisTarget> {
+pub fn read_target(obj: &mut Object, loc: &Location) -> Option<AnalysisTarget> {
     if !obj.contains_key("target") {
         return None;
     }
@@ -538,7 +538,7 @@ pub fn read_target(obj: &mut Object) -> Option<AnalysisTarget> {
     })
 }
 
-pub fn read_structured(obj: &mut Object) -> Option<AnalysisStructured> {
+pub fn read_structured(obj: &mut Object, loc: &Location) -> Option<AnalysisStructured> {
     if !obj.contains_key("structured") {
         return None;
     }
@@ -600,7 +600,7 @@ pub fn read_structured(obj: &mut Object) -> Option<AnalysisStructured> {
     })
 }
 
-pub fn read_source(obj: &mut Object) -> Option<AnalysisSource> {
+pub fn read_source(obj: &mut Object, loc: &Location) -> Option<AnalysisSource> {
     if !obj.contains_key("source") {
         return None;
     }
