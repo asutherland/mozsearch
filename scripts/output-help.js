@@ -11,7 +11,7 @@ let opt = {tree: treeName,
            autofocusSearch: true};
 
 let body = snarf(helpFile);
-let output = generate(body, opt);
+let output = generateFancy(body, opt);
 
 let old = redirect(indexRoot + "/help.html");
 print(output);

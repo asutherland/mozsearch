@@ -30,21 +30,30 @@ export default class PathCrumbed extends React.PureComponent {
   }
 
   render() {
-    const { path } = this.props;
+    const { grokCtx, path, location } = this.props;
 
     // NB: It's assumed this will have been normalized to '/' even for Windows.
     const pieces = path.split('/');
+
+    const commonClick = (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+
+      grokCtx.historyHelper.navigateTo(evt.target.href);
+    };
 
     // ## [0, last)
     const elems = [];
     const iLast = pieces.length - 1;
     for (let iPiece=0; iPiece < iLast; iPiece++) {
       const piece = pieces[iPiece];
+      const url =
+        grokCtx.historyHelper.buildSourceURL(pieces.slice(0, iPiece).join('/'));
       elems.push(
         <Breadcrumb.Section
           link
           key={ `s${iPiece}` }>
-          { piece }
+          <a href={url} onClick={ commonClick }>{ piece }</a>
         </Breadcrumb.Section>
       );
       elems.push(
@@ -54,20 +63,39 @@ export default class PathCrumbed extends React.PureComponent {
       );
     }
     // ## last
+    const fullUrl = grokCtx.historyHelper.buildSourceURL(path);
     const lastPiece = pieces[iLast];
     elems.push(
       <Breadcrumb.Section
         active
         key={ `s${iLast}` }
-        onClick={ (evt) => { this.analyzeFile(evt, path); }}
         >
-        { lastPiece }
+        <a href={ fullUrl } onClick={ commonClick }>{ lastPiece }</a>
       </Breadcrumb.Section>
     );
 
+    // ## maybe anchor link.
+    if (location) {
+      const locUrl = grokCtx.historyHelper.buildSourceURL(path, location.lno);
+      elems.push(
+        <Breadcrumb.Divider
+          key="loc-divider"
+          content=":"
+          />
+      );
+      elems.push(
+        <Breadcrumb.Section
+          active
+          key="loc-section"
+          >
+          <a href={ locUrl } onClick={ commonClick }>{ location.lno }</a>
+        </Breadcrumb.Section>
+      );
+    }
+
     // ## Assemble
     return (
-      <Breadcrumb>
+      <Breadcrumb size="small">
         { elems }
       </Breadcrumb>
     );

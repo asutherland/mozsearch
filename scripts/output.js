@@ -40,7 +40,7 @@ function generateBreadcrumbs(path, opt)
   </div>`;
 }
 
-function generate(content, opt)
+function generateOld(content, opt)
 {
   let title = opt.title || "mozsearch";
   let tree = opt.tree;

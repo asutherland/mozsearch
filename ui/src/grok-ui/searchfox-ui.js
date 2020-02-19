@@ -148,12 +148,16 @@ function semanticInfoFromTarget(target, ancestorCheck) {
 
   let inAncestor = ancestorCheck && target.closest(ancestorCheck) && true;
 
+  const fileInfo = gContentTrack.selectedThing &&
+                   gContentTrack.selectedThing.model &&
+                   gContentTrack.selectedThing.fileInfo;
+
   const win = target.ownerDocument.defaultView;
 
   const iElem = target.closest('[data-i]');
-  if (iElem) {
+  if (iElem && fileInfo) {
     const index = parseInt(iElem.dataset.i, 10);
-    [jumps, searches] = win.ANALYSIS_DATA[index];
+    [jumps, searches] = fileInfo.fileAnalysisData[index];
   }
 
   const tokenElem = target.closest('[data-symbols]');
@@ -164,7 +168,7 @@ function semanticInfoFromTarget(target, ancestorCheck) {
     if (firstSym) {
       // right now this is just "syntax" (always, with fancy crossref), and
       // "type"/"typesym" (when the fancy branch indexer is used.)
-      rawMetaInfo = win.SYM_INFO[firstSym] || null;
+      rawMetaInfo = fileInfo && fileInfo.fileSymInfo[firstSym] || null;
       // TODO: we could really be consolidating the jumps/searches into the
       // same info here.  The relevant utility of jumps/searches is that
       // redundant pointers to the current code location are automatically
@@ -192,7 +196,6 @@ function semanticInfoFromTarget(target, ancestorCheck) {
   return { jumps, searches, symbolNames, rawMetaInfo, symInfo, visibleTokenText,
            nestingSymInfo, inAncestor };
 }
-
 
 
 class SymbolHighlighter {
@@ -384,10 +387,11 @@ class HistoryHelper {
 
   getCurrentLocationState() {
     const pathInfo = this.parseSearchfoxPath(window.location.pathname);
+    const curUrl = new URL(window.location);
     const queryParams =
-      Object.fromEntries(new URL(window.location).searchParams.entries());
+      Object.fromEntries(curUrl.searchParams.entries());
 
-    return { pathInfo, queryParams };
+    return { pathInfo, queryParams, hash: curUrl.hash };
   }
 
   buildSourceURL(path, line) {
@@ -417,9 +421,22 @@ class HistoryHelper {
     return `/${this.treeName}/sorch?q=symbol:${encodeURIComponent(symbols)}`;
   }
 
+  /**
+   * Attempt to single-page navigate to the given link, returning true if the
+   * URL was eligible and false if not.  (It's possible for us to encounter
+   * links that aren't part of the same tree, in which case we want a normal
+   * navigation to occur.)
+   */
   navigateTo(url) {
+    const candidateUrl = new URL(url, window.location);
+    if (candidateUrl.origin !== window.location.origin ||
+        !candidateUrl.pathname.startsWith(`/${this.treeName}/`)) {
+      return false;
+    }
+
     history.pushState({}, '', url);
     this.onPopState('internal');
+    return true;
   }
 
   /**
@@ -427,28 +444,28 @@ class HistoryHelper {
    * well as if our `navigateTo` helper is used.
    */
   onPopState(/* source */) {
-    const { pathInfo, queryParams } = this.getCurrentLocationState();
+    const { pathInfo, queryParams, hash } = this.getCurrentLocationState();
 
-    let thing;
+    let thing, existed;
     switch (pathInfo.route) {
       case 'source': {
-        thing = this.contentTrack.ensureThing({
+        ({ thing, existed } = this.contentTrack.ensureThing({
           type: 'sourceView',
           persisted: {
             path: pathInfo.rest,
           },
-        });
+        }));
         break;
       }
 
       case 'search':
       case 'sorch': {
-        thing = this.contentTrack.ensureThing({
+        ({ thing, existed } = this.contentTrack.ensureThing({
           type: 'searchResults',
           persisted: {
             queryParams
           },
-        });
+        }));
         break;
       }
 
@@ -457,7 +474,15 @@ class HistoryHelper {
       }
     }
 
+    const alreadyVisible = this.contentTrack.selectedThing === thing;
     this.contentTrack.selectThing(thing);
+    // If the source view already existed and was already displayed, then it's
+    // likely the DOM has already been attached.  If the DOM is already attached
+    // then `StaticSourceViewSheet` won't attempt to call scrollIntoView, which
+    // means we need to do it here.
+    if (existed && alreadyVisible && hash) {
+      window.scrollIntoView(hash.slice(1));
+    }
   }
 }
 
@@ -501,7 +526,7 @@ function replaceUIWithOverwhelmingComplexity() {
   headerElem.textContent = '';
 
   const contentTrack = gGrokCtx.sessionManager.tracks['content'];
-  gHistoryHelper = new HistoryHelper({
+  gHistoryHelper = gGrokCtx.historyHelper = new HistoryHelper({
     treeName: gGrokCtx.treeName,
     contentTrack,
   });
@@ -549,7 +574,10 @@ function replaceUIWithOverwhelmingComplexity() {
     // Remove the script tag that got us the above globals, we've saved them off
     // and don't need them again.
     const byeScript = fileInfo.domTree.querySelector('script');
-    byeScript.parentNode.removeChild(byeScript);
+    // File listings don't have a script tag.
+    if (byeScript) {
+      byeScript.parentNode.removeChild(byeScript);
+    }
 
     contentTrack.addThing(null, null, {
       type: 'sourceView',

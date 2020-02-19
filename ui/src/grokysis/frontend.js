@@ -33,6 +33,12 @@ class GrokAnalysisFrontend {
       iframeParentElem: session.iframeParentElem,
     });
 
+    /**
+     * This currently gets clobbered in by `searchfox-ui.js` but probably would
+     * do better to be instantiated here or via caller-provided helper func.
+     */
+    this.historyHelper = null;
+
     const { backend, useAsPort } = makeBackend();
     this._backend = backend; // the direct destructuring syntax is confusing.
     this._port = useAsPort;

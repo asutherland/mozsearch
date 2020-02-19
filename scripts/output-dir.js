@@ -155,7 +155,7 @@ function generateDirectory(dir, path, opt)
   let dirname = path == "/" ? "/" : path.substring(path.lastIndexOf("/") + 1);
   opt.title = `${dirname} - mozsearch`;
 
-  let output = generate(content, opt);
+  let output = generateFancy(content, opt);
 
   let old = redirect(indexRoot + "/dir/" + path + "/index.html");
   print(output);

@@ -153,6 +153,7 @@ export default class SessionManager extends EE {
    */
   makeDefaultSessionMeta() {
     return {
+      selected: false,
     };
   }
 

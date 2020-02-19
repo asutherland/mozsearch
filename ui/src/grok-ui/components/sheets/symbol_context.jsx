@@ -75,6 +75,7 @@ export class SymbolContextSheet extends DirtyingComponent {
       if (symInfo.declFileInfo) {
         maybePath = (
           <PathCrumbed
+            grokCtx={ grokCtx }
             path={ symInfo.declFileInfo.path }
             location={ symInfo.declLocation }
             />
@@ -98,6 +99,7 @@ export class SymbolContextSheet extends DirtyingComponent {
       if (symInfo.sourceFileInfo) {
         maybePath = (
           <PathCrumbed
+            grokCtx={ grokCtx }
             path={ symInfo.sourceFileInfo.path }
             location={ symInfo.defLocation }
             />

@@ -264,7 +264,7 @@ export default class KnowledgeBase {
 
     const ifr = document.createElement('iframe');
     const loadPromise = new Promise((resolve) => {
-      ifr.addEventListener(resolve, 'load', { once: true });
+      ifr.addEventListener('load', resolve, { once: true });
     });
     ifr.src = `/${this.treeName}/source/${fileInfo.path}`;
     this.iframeParentElem.appendChild(ifr);
@@ -279,7 +279,10 @@ export default class KnowledgeBase {
     const icontent = idoc.getElementById('content');
     // Remove the script tag that gave us those cool globals.
     const byeScript = icontent.querySelector('script');
-    byeScript.parentNode.removeChild(byeScript);
+    // Noting that the script isn't present for directory listings...
+    if (byeScript) {
+      byeScript.parentNode.removeChild(byeScript);
+    }
 
     fileInfo.domTree = document.adoptNode(icontent);
     this.iframeParentElem.removeChild(ifr);

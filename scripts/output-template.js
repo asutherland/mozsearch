@@ -15,7 +15,7 @@ let searchBody = `<script>
       window.addEventListener("load", function() { showSearchResults(results); });
     </script>`;
 
-let output = generate(searchBody, opt);
+let output = generateOld(searchBody, opt);
 
 // Redirect stdout to the output file, saving off stdout
 let old = redirect(indexRoot + "/templates/search.html");
