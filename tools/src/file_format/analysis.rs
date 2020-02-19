@@ -184,7 +184,7 @@ impl fmt::Display for AnalysisStructured {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         write!(
             formatter,
-            r#""source":1,"pretty":{},"sym":{},"kind":{}"#,
+            r#""structured":1,"pretty":{},"sym":{},"kind":{}"#,
             as_json(&self.pretty),
             as_json(&self.sym),
             as_json(&self.kind)
@@ -207,8 +207,8 @@ impl fmt::Display for AnalysisStructured {
         // don't need to do anything with them, just emit the payload string as-is.
         write!(
             formatter,
-            r#"{}"#,
-            &self.payload)?;
+            r#",{}"#,
+            &self.payload[1..self.payload.len()-1])?;
         Ok(())
     }
 }
