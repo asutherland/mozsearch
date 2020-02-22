@@ -36,7 +36,6 @@
 #include <stdlib.h>
 
 #include "FileOperations.h"
-#include "JSONFormatter.h"
 #include "StringOperations.h"
 
 // What's the maximum line length we support?  If there's a line longer than
@@ -1357,79 +1356,93 @@ public:
     FileInfo *F = getFileInfo(Loc);
 
     if (!(Flags & NoCrossref)) {
-      JSONFormatter Fmt;
+      std::string json_str;
+      llvm::raw_string_ostream ros(json_str);
+      llvm::json::OStream J(ros);
+      // Start the top-level object.
+      J.objectBegin();
 
-      Fmt.add("loc", LocStr);
-      Fmt.add("target", 1);
-      Fmt.add("kind", Kind);
-      Fmt.add("pretty", QualName.data());
-      Fmt.add("sym", Symbol);
+      J.attribute("loc", LocStr);
+      J.attribute("target", 1);
+      J.attribute("kind", Kind);
+      J.attribute("pretty", QualName.data());
+      J.attribute("sym", Symbol);
       if (!TokenContext.Name.empty()) {
-        Fmt.add("context", TokenContext.Name);
+        J.attribute("context", TokenContext.Name);
       }
       if (!TokenContext.Symbol.empty()) {
-        Fmt.add("contextsym", TokenContext.Symbol);
+        J.attribute("contextsym", TokenContext.Symbol);
       }
       if (PeekRange.isValid()) {
         PeekRangeStr = lineRangeToString(PeekRange);
         if (!PeekRangeStr.empty()) {
-          Fmt.add("peekRange", PeekRangeStr);
+          J.attribute("peekRange", PeekRangeStr);
         }
       }
 
+      // End the top-level object.
+      J.objectEnd();
+      // we want a newline.
+      ros << '\n';
       std::string S;
-      Fmt.format(S);
-      F->Output.push_back(std::move(S));
+      F->Output.push_back(std::move(ros.str()));
     }
 
     // Generate a single "source":1 for all the symbols. If we search from here,
     // we want to union the results for every symbol in `symbols`.
-    JSONFormatter Fmt;
+    std::string json_str;
+    llvm::raw_string_ostream ros(json_str);
+    llvm::json::OStream J(ros);
+    // Start the top-level object.
+    J.objectBegin();
 
-    Fmt.add("loc", RangeStr);
-    Fmt.add("source", 1);
+    J.attribute("loc", RangeStr);
+    J.attribute("source", 1);
 
     if (NestingRange.isValid()) {
       std::string NestingRangeStr = fullRangeToString(NestingRange);
       if (!NestingRangeStr.empty()) {
-        Fmt.add("nestingRange", NestingRangeStr);
+        J.attribute("nestingRange", NestingRangeStr);
       }
     }
 
     std::string Syntax;
     if (Flags & NoCrossref) {
-      Fmt.add("syntax", "");
+      J.attribute("syntax", "");
     } else {
       Syntax = Kind;
       Syntax.push_back(',');
       Syntax.append(SyntaxKind);
-      Fmt.add("syntax", Syntax);
+      J.attribute("syntax", Syntax);
     }
 
     if (!MaybeType.isNull()) {
-      Fmt.add("type", MaybeType.getAsString());
+      J.attribute("type", MaybeType.getAsString());
       QualType canonical = MaybeType.getCanonicalType();
       const TagDecl *decl = canonical->getAsTagDecl();
       if (decl) {
         std::string Mangled = getMangledName(CurMangleContext, decl);
-        Fmt.add("typesym", Mangled);
+        J.attribute("typesym", Mangled);
       }
     }
 
     std::string Pretty(SyntaxKind);
     Pretty.push_back(' ');
     Pretty.append(QualName.data());
-    Fmt.add("pretty", Pretty);
+    J.attribute("pretty", Pretty);
 
-    Fmt.add("sym", Symbol);
+    J.attribute("sym", Symbol);
 
     if (Flags & NoCrossref) {
-      Fmt.add("no_crossref", 1);
+      J.attribute("no_crossref", 1);
     }
 
-    std::string Buf;
-    Fmt.format(Buf);
-    F->Output.push_back(std::move(Buf));
+    // End the top-level object.
+    J.objectEnd();
+
+    // we want a newline.
+    ros << '\n';
+    F->Output.push_back(std::move(ros.str()));
   }
 
   void normalizeLocation(SourceLocation *Loc) {
