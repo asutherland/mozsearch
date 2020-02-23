@@ -42,7 +42,8 @@ check-test-repo:
 # itself.
 hacky-merge-test-repo:
 	/vagrant/tools/target/release/merge-analyses ~/index/tests/analysis/big_cpp.cpp > ~/index/tests/analysis/merged_big_cpp.cpp
-	/vagrant/tools/target/release/merge-analyses ~/index/tests/analysis/big_cpp.cpp ~/index/tests/analysis/big_cpp.cpp > ~/index/tests/analysis/selfmerged_big_cpp.cpp
+	sed 's/"sizeBytes":16/"sizeBytes":24/' ~/index/tests/analysis/big_cpp.cpp > ~/index/tests/analysis/big_cpp_modified.cpp
+	/vagrant/tools/target/release/merge-analyses ~/index/tests/analysis/big_cpp.cpp ~/index/tests/analysis/big_cpp_modified.cpp > ~/index/tests/analysis/selfmerged_big_cpp.cpp
 
 build-searchfox-repo: check-in-vagrant build-clang-plugin build-rust-tools build-ui
 	mkdir -p ~/searchfox-index

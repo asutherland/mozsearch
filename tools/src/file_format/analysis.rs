@@ -164,11 +164,13 @@ impl fmt::Display for WithLocation<AnalysisTarget> {
 /// These records are not subject to merging at this time.  Where merging would occur, duplicates
 /// are simply dropped on the floor.  https://bugzilla.mozilla.org/show_bug.cgi?id=1468445#c1
 /// includes a very speculative proposal for how to deal with deviations between platforms.
-#[derive(Debug)]
+#[derive(Debug, Hash)]
 pub struct AnalysisStructured {
     pub pretty: String,
     pub sym: String,
     pub kind: String,
+    // Note that this is a valid JSON string, so if you want to just use its contents, you need
+    // to slice off the enclosing "{}".
     pub payload: String,
     pub src_sym: Option<String>,
     pub target_sym: Option<String>,
@@ -402,7 +404,7 @@ fn parse_source_range(range: &str) -> SourceRange {
 
 pub fn read_analysis<T>(
     filename: &str,
-    filter: &mut dyn FnMut(&mut Object, &Location) -> Option<T>,
+    filter: &mut dyn FnMut(&mut Object, &Location, usize) -> Option<T>,
 ) -> Vec<WithLocation<Vec<T>>> {
     read_analyses(vec![filename.to_string()].as_slice(), filter)
 }
@@ -413,10 +415,10 @@ pub fn read_analysis<T>(
 /// types being ignored.
 pub fn read_analyses<T>(
     filenames: &[String],
-    filter: &mut dyn FnMut(&mut Object, &Location) -> Option<T>,
+    filter: &mut dyn FnMut(&mut Object, &Location, usize) -> Option<T>,
 ) -> Vec<WithLocation<Vec<T>>> {
     let mut result = Vec::new();
-    for filename in filenames {
+    for (i_file, filename) in filenames.into_iter().enumerate() {
         let file = match File::open(filename) {
             Ok(f) => f,
             Err(_) => {
@@ -444,7 +446,7 @@ pub fn read_analyses<T>(
             // Destructively pull the "loc" out before passing it into the filter.  This is for
             // read_structured which stores everything it doesn't directly process in `payload`.
             let loc = parse_location(obj.remove("loc").unwrap().as_string().unwrap());
-            match filter(obj, &loc) {
+            match filter(obj, &loc, i_file) {
                 Some(v) => {
                     result.push(WithLocation { data: v, loc: loc })
                 }
@@ -490,7 +492,7 @@ pub fn read_analyses<T>(
     result2
 }
 
-pub fn read_target(obj: &mut Object, loc: &Location) -> Option<AnalysisTarget> {
+pub fn read_target(obj: &mut Object, _loc: &Location, _i_size: usize) -> Option<AnalysisTarget> {
     if !obj.contains_key("target") {
         return None;
     }
@@ -538,7 +540,7 @@ pub fn read_target(obj: &mut Object, loc: &Location) -> Option<AnalysisTarget> {
     })
 }
 
-pub fn read_structured(obj: &mut Object, loc: &Location) -> Option<AnalysisStructured> {
+pub fn read_structured(obj: &mut Object, _loc: &Location, _i_size: usize) -> Option<AnalysisStructured> {
     if !obj.contains_key("structured") {
         return None;
     }
@@ -600,7 +602,7 @@ pub fn read_structured(obj: &mut Object, loc: &Location) -> Option<AnalysisStruc
     })
 }
 
-pub fn read_source(obj: &mut Object, loc: &Location) -> Option<AnalysisSource> {
+pub fn read_source(obj: &mut Object, _loc: &Location, _i_size: usize) -> Option<AnalysisSource> {
     if !obj.contains_key("source") {
         return None;
     }
