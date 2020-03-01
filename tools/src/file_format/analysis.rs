@@ -189,20 +189,20 @@ impl fmt::Display for AnalysisStructured {
             r#""structured":1,"pretty":{},"sym":{},"kind":{}"#,
             as_json(&self.pretty),
             as_json(&self.sym),
-            as_json(&self.kind)
+            self.kind
         )?;
         if let Some(src_sym) = &self.src_sym {
             write!(
                 formatter,
-                r#","type":"{}""#,
-                src_sym
+                r#","srcsym":"{}""#,
+                as_json(&src_sym)
             )?;
         }
         if let Some(target_sym) = &self.target_sym {
             write!(
                 formatter,
-                r#","type":"{}""#,
-                target_sym
+                r#","targetsym":"{}""#,
+                as_json(&target_sym)
             )?;
         }
         // super_syms and override_syms are digests of data that's still present in payload so we
@@ -330,14 +330,14 @@ impl fmt::Display for AnalysisSource {
             write!(
                 formatter,
                 r#","type":"{}""#,
-                type_pretty
+                as_json(&type_pretty)
             )?;
         }
         if let Some(type_sym) = &self.type_sym {
             write!(
                 formatter,
                 r#","typesym":"{}""#,
-                type_sym
+                as_json(&type_sym)
             )?;
         }
         Ok(())
