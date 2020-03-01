@@ -189,19 +189,19 @@ impl fmt::Display for AnalysisStructured {
             r#""structured":1,"pretty":{},"sym":{},"kind":{}"#,
             as_json(&self.pretty),
             as_json(&self.sym),
-            self.kind
+            as_json(&self.kind)
         )?;
         if let Some(src_sym) = &self.src_sym {
             write!(
                 formatter,
-                r#","srcsym":"{}""#,
+                r#","srcsym":{}"#,
                 as_json(&src_sym)
             )?;
         }
         if let Some(target_sym) = &self.target_sym {
             write!(
                 formatter,
-                r#","targetsym":"{}""#,
+                r#","targetsym":{}"#,
                 as_json(&target_sym)
             )?;
         }
@@ -329,14 +329,14 @@ impl fmt::Display for AnalysisSource {
         if let Some(type_pretty) = &self.type_pretty {
             write!(
                 formatter,
-                r#","type":"{}""#,
+                r#","type":{}"#,
                 as_json(&type_pretty)
             )?;
         }
         if let Some(type_sym) = &self.type_sym {
             write!(
                 formatter,
-                r#","typesym":"{}""#,
+                r#","typesym":{}"#,
                 as_json(&type_sym)
             )?;
         }
