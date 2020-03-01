@@ -53,7 +53,8 @@ fn main() {
         std::process::exit(1);
     }
 
-    let re_platform = Regex::new(r"/analysis-([^/]+)/").unwrap();
+    // The paths are relative, so don't look for a leading slash, but instead anchor at the front.
+    let re_platform = Regex::new(r"^analysis-([^/]+)/").unwrap();
 
     // Build a list of platforms that parallels the list of files in `args`.
     let platforms: Vec<String> = args.iter().enumerate().map(|(i, fname)| {
