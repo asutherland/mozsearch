@@ -97,7 +97,7 @@ function makeGrokContext() {
         symbolInfo: {
           factory: ({ symInfo, fromSymInfo }, grokCtx, sessionThing) => {
             // Trigger full analysis of the symbol.
-            grokCtx.kb.ensureSymbolAnalysis(symInfo, 1);
+            grokCtx.kb.ensureSymbolAnalysis(symInfo, { analysisMode: 'context' });
             return {
               popupProps: {},
               contents: (
@@ -174,13 +174,18 @@ function semanticInfoFromTarget(target, ancestorCheck) {
       // redundant pointers to the current code location are automatically
       // suppressed.  At the very least, the prettyInfo could be available from
       // the rawSymInfo
-      symInfo = gGrokCtx.kb.lookupRawSymbol(firstSym, 2);
+      symInfo =
+        gGrokCtx.kb.lookupRawSymbol(firstSym, { analysisMode: 'context' });
     }
 
     const nestingElem = target.closest('[data-nesting-sym]');
     if (nestingElem) {
       nestingSymInfo =
-        gGrokCtx.kb.lookupRawSymbol(nestingElem.dataset.nestingSym, 2);
+        gGrokCtx.kb.lookupRawSymbol(
+          nestingElem.dataset.nestingSym,
+          {
+            analysisMode: 'context',
+          });
       // The nesting heuristic is a little naive in that the nesting block also
       // includes the sticky line.  We don't want to create self-cycles in this
       // case.  (Although there are legit cycles we're suppressing this way.)

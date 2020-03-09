@@ -1,3 +1,25 @@
+
+/**
+ * Defines
+ */
+const FILE_SYMBOL_TRAVERSALS = [
+  {
+    name: 'DEFS',
+    match: 'def',
+    triggerSymbolTraversals: ['SUPERCLASSES'],
+  }
+];
+
+/**
+ *
+ */
+const FILE_ANALYSIS_MODELS = [
+  {
+    name: 'overview',
+    traversals: ['DEFS']
+  },
+];
+
 function findNonWS(str) {
   const l = str.length;
   for (let i=0; i < l; i++) {

@@ -34,6 +34,29 @@ export default class SymbolInfo extends EE {
 
     this.serial = 0;
 
+    /// The crossref data for this symbol from the server.  This currently
+    /// includes
+    this.__crossrefData = null;
+
+    /// Bits for traversals that are actively happening for this symbol.  (As
+    /// compared to traversals that are in an `AnalysisTask.todo` list.)
+    this.__activeTraversalBits = 0;
+    /// Analysis traversals that have been completed for this Symbol, which
+    /// means that all follow-on "traverseNext" traversals have also completed.
+    this.__completedTraversalBits = 0;
+    /// Analysis traversals which have been decreed excessive for this Symbol.
+    /// This happens for things like nsISupports subclasses and uses of
+    /// RefPtr<T>.
+    ///
+    /// Note that currently the server will actually provide us with all of this
+    /// data, but we won't process it.  In the future, we may optimize the
+    /// server so that the excessive information is returned at all, but right
+    /// now it's not excessively debilitating.  (For example, a semantic-only
+    /// search on RefPtr currently results in a 16.77MB page that compresses to
+    /// 2.38MB transferred, which isn't great, but also isn't the end of the
+    /// world.)
+    this.__excessiveBits = 0;
+
     /**
      * The raw searchfox symbol name for this symbol.  For C++ this is the
      * mangled symbol name.  For things like JS or IDL this may be a synthetic
@@ -76,9 +99,6 @@ export default class SymbolInfo extends EE {
     this.typeLetter = '?';
     this.semanticKind = 'unknown';
     this.implKind = 'impl';
-
-    this.analyzing = false;
-    this.analyzed = false;
 
     /**
      * Direct superclasses of this symbol with symInfo clobbered into each meta

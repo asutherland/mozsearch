@@ -1,6 +1,7 @@
-import SymbolInfo from './kb/symbol_info.js';
-import FileInfo from './kb/file_info.js';
 import FileAnalyzer from './kb/file_analyzer.js';
+import FileInfo from './kb/file_info.js';
+import SymbolAnalyzer from './kb/symbol_analyzer.js';
+import SymbolInfo from './kb/symbol_info.js';
 
 import ClassDiagram from './diagramming/class_diagram.js';
 
@@ -8,10 +9,15 @@ import HierarchyDoodler from './diagramming/hierarchy_doodler.js';
 import InternalDoodler from './diagramming/internal_doodler.js';
 import PathsBetweenDoodler from './diagramming/paths_between_doodler.js';
 
-// This serves as a limit on in-edge processing for uses.  If we see that we
-// have uses across more than this many file hits for uses, then we don't
-// process uses for the given node.
+/// This serves as a limit on in-edge processing for uses.  If we see that we
+/// have uses across more than this many file hits for uses, then we don't
+/// process uses for the given node.  There can still be a ton of uses within
+/// these files!  This is mainly just a heuristic to get tripped up by utility
+/// functions.
 const MAX_USE_PATHLINES_LIMIT = 32;
+/// How many subclasses is too many before we decide that traversal should be
+/// forbidden?
+const EXCESSIVE_SUBCLASSES = 16;
 
 /**
  * Check if two (inclusive start offset, exclusive end offset) ranges intersect.
@@ -81,11 +87,6 @@ export default class KnowledgeBase {
     this.symbolsByRawName = new Map();
 
     /**
-     * Set of SymbolInfo instances currently undergoing analysis.  Primarily
-     * intended as a debugging aid.
-     */
-    this.analyzingSymbols = new Set();
-    /**
      * Set of FileInfo instances currently underoing analysis.  Primarily
      * intended as a debugging aid.
      */
@@ -99,6 +100,7 @@ export default class KnowledgeBase {
     this.filesByPath = new Map();
 
     this.fileAnalyzer = new FileAnalyzer(this);
+    this.symbolAnalyzer = new SymbolAnalyzer(this);
 
     this.treeInfo = null;
     window.setTimeout(() => { this._loadTreeInfo(); }, 0);
@@ -143,6 +145,38 @@ export default class KnowledgeBase {
   }
 
   /**
+   * Given raw search results, process each "semantic" entry, returning the
+   * existing
+   */
+  async __processRawSearchResults(raw, traversalMode) {
+    const resultSet = new Set();
+    for (const [rawName, rawSymInfo] of Object.entries(raw.semantic || {})) {
+      let symInfo = this.symbolsByRawName.get(rawName);
+      if (symInfo) {
+        resultSet.add(symInfo);
+
+        this.symbolAnalyzer.injectCrossrefData(symInfo, rawSymInfo);
+        if (traversalMode) {
+          await this.symbolAnalyzer.ensureSymbolAnalysis(symInfo, traversalMode);
+        }
+        continue;
+      }
+
+      symInfo = new SymbolInfo({ rawName });
+      this.symbolsByRawName.set(rawName, symInfo);
+
+      this.symbolAnalyzer.injectCrossrefData(symInfo, rawSymInfo);
+      if (traversalMode) {
+        await this.symbolAnalyzer.ensureSymbolAnalysis(symInfo, traversalMode);
+      }
+
+      resultSet.add(symInfo);
+    }
+
+    return resultSet;
+  }
+
+  /**
    * Basically just a caching exact "id" search for now.
    */
   async findSymbolsGivenId(id) {
@@ -159,26 +193,7 @@ export default class KnowledgeBase {
 
     const raw = filteredResults.rawResultsList[0].raw;
 
-    const resultSet = new Set();
-    for (const [rawName, rawSymInfo] of Object.entries(raw.semantic || {})) {
-      let symInfo = this.symbolsByRawName.get(rawName);
-      if (symInfo) {
-        resultSet.add(symInfo);
-
-        if (!symInfo.analyzed && !symInfo.analyzing) {
-          this._processSymbolRawSymInfo(symInfo, rawSymInfo, 2);
-          symInfo.analyzed = 2;
-        }
-        continue;
-      }
-
-      symInfo = new SymbolInfo({ rawName });
-      this.symbolsByRawName.set(rawName, symInfo);
-      this._processSymbolRawSymInfo(symInfo, rawSymInfo, 2);
-      symInfo.analyzed = 2;
-
-      resultSet.add(symInfo);
-    }
+    const resultSet = this.__processRawSearchResults(raw, 'context');
 
     if (resultSet.size) {
       this.idToSymbols.set(id, resultSet);
@@ -193,37 +208,75 @@ export default class KnowledgeBase {
    * Given its raw symbol name, synchronously return a SymbolInfo that will
    * update as more information is gained about it.
    *
+   * The lookup request can involve an `analysisMode`.  If one isn't provided,
+   * then the current information known about the symbol is returned, which may
+   * only be the raw symbol name.
+   *
+   * Analysis is all about deciding what symbol-lookups to perform on the
+   * server.  For any given symbol, the crossref database tells us any
+   * structured information we know about the symbol as well as the locations
+   * of defs/decls/uses/other.  For this information to be useful, we often
+   * want to know about other symbols referenced by the search results.  For
+   * example, we usually would want the structured information about all of a
+   * class's superclasses, which means we want to perform lookups on their
+   * crossref data.
+   *
+   * Analysis is also about deciding what lookups not to perform.  Naively
+   * traversing all edges from symbols will quickly result in an attempt to
+   * pull in every symbol in the codebase.
+   *
+   * TODO: Refactor analysis into 3-stage approach:
+   * 1. Get the search data for the symbol and save it off.
+   * 2. Perform population of the SymbolInfo, invoking lookup directly.
+   * 3. Process any analysis bits which use a structured list of helpers that
+   *    return a list of symbols to perform further processing on, and the
+   *    appropriate analysis bits for those symbols.  (Under the current regime
+   *    this would involve direct calls to lookupRawSymbol, but the indirection
+   *    is useful for debugging and testing, plus potentially assists in
+   *    prioritization.)
+   *
    * @param {String} [prettyName]
+   * @param opts.analysisMode
+   *   One of the following modes:
+   *   - 'context': This is an initiating symbol and the goal is to know about
+   *     the symbol's position in the type hierarchy plus local control flow.
+   *   - 'file': The symbol is being looked up because we got a list of all of
+   *     the symbols in a file somehow and want more details on them.  No
+   *     unbounded traversal should happen.
+   *   - 'parent': The symbol is being looked up because of its parent.  No
+   *     unbounded traversal should happen.
+   *   - 'super': The initiating symbol wants to know about its superclasses.
+   *     All analysis traversals should be strictly up the super chain.
+   *   - 'subclasses': The initiating symbol wants to know about its subclasses.
+   *     All analysis traversals should be strictly down the subclass chain and
+   *     should be prepared for overload.
+   *
    */
-  lookupRawSymbol(rawName, analyzeHopsInclusive, prettyName, opts) {
+  lookupRawSymbol(rawName, opts={}) {
+    const { prettyName } = opts;
+
     rawName = this.normalizeSymbol(rawName); // deal with comma-delimited symbols.
-    if (typeof(analyzeHopsInclusive) !== 'number') {
-      throw new Error("lookupRawSymbol now takes an inclusive hopcount");
-    }
-    analyzeHopsInclusive = Math.max(0, analyzeHopsInclusive);
 
     let symInfo = this.symbolsByRawName.get(rawName);
     if (symInfo) {
       if (prettyName && !symInfo.prettyName) {
         symInfo.updatePrettyNameFrom(prettyName);
       }
-      if (analyzeHopsInclusive && !symInfo.analyed && !symInfo.analyzing) {
-        this.ensureSymbolAnalysis(symInfo, analyzeHopsInclusive);
-      }
-      return symInfo;
+    } else {
+      symInfo = new SymbolInfo({
+        rawName, prettyName,
+        // propagate hints for the source through.
+        somePath: opts && opts.somePath,
+        headerPath: opts && opts.headerPath,
+        sourcePath: opts && opts.sourcePath,
+        semanticKind: opts && opts.semanticKind,
+      });
+      this.symbolsByRawName.set(rawName, symInfo);
     }
 
-    symInfo = new SymbolInfo({
-      rawName, prettyName,
-      // propagate hints for the source through.
-      somePath: opts && opts.somePath,
-      headerPath: opts && opts.headerPath,
-      sourcePath: opts && opts.sourcePath,
-      semanticKind: opts && opts.semanticKind,
-    });
-    this.symbolsByRawName.set(rawName, symInfo);
-
-    this.ensureSymbolAnalysis(symInfo, analyzeHopsInclusive);
+    if (opts.analysisMode) {
+      this.symbolAnalyzer.ensureSymbolAnalysis(symInfo, opts.analysisMode);
+    }
 
     return symInfo;
   }
@@ -345,50 +398,16 @@ export default class KnowledgeBase {
    * locating all the members of a class or all the symbols in a compilation
    * unit.)
    */
-  async ensureSymbolAnalysis(symInfo, analyzeHopsInclusive) {
-    if (analyzeHopsInclusive <= 0) {
-      return symInfo;
-    }
-    if (symInfo.analyzed) {
-      if (analyzeHopsInclusive && symInfo.analyzed < analyzeHopsInclusive) {
-        symInfo.analyzed = analyzeHopsInclusive;
-
-        // we need to trigger analysis for all symbols in the graph.
-        if (symInfo.outEdges.size < this.EDGE_SANITY_LIMIT) {
-          for (let otherSym of symInfo.outEdges) {
-            this.ensureSymbolAnalysis(otherSym, analyzeHopsInclusive - 1);
-          }
-        }
-        if (symInfo.inEdges.size < this.EDGE_SANITY_LIMIT) {
-          for (let otherSym of symInfo.inEdges) {
-            this.ensureSymbolAnalysis(otherSym, analyzeHopsInclusive - 1);
-          }
-        }
-      }
-      return symInfo;
-    }
-    if (symInfo.analyzing) {
-      return symInfo.analyzing;
-    }
-
-    symInfo.analyzing = this._analyzeSymbol(symInfo, analyzeHopsInclusive);
-    this.analyzingSymbols.add(symInfo);
-
-    await symInfo.analyzing;
-    symInfo.analyzing = false;
-    symInfo.analyzed = analyzeHopsInclusive;
-    this.analyzingSymbols.delete(symInfo);
-    symInfo.markDirty();
-    return symInfo;
+  async ensureSymbolAnalysis(symInfo, { analysisMode }) {
+    return this.symbolAnalyzer.ensureSymbolAnalysis(symInfo, analysisMode);
   }
 
   /**
    * Given the raw semantic info returned from a sorch that matches a symbol,
    * process it into the given symbol.
    */
-  _processSymbolRawSymInfo(symInfo, rawSymInfo, analyzeHopsInclusive=0) {
-    // Let's assume something in this method changes the symbol.
-    symInfo.markDirty();
+  _processSymbolRawSymInfo(symInfo, rawSymInfo) {
+    symInfo.__crossrefData = rawSymInfo;
 
     symInfo.updatePrettyNameFrom(rawSymInfo.pretty);
 
@@ -415,20 +434,12 @@ export default class KnowledgeBase {
         usesSemanticKind = 'function';
       }
 
-      // For all cross-referenced metadata symbols, we want to ensure
-      // that analysis happens for every symbol referenced, but we don't want
-      // to end up including every symbol ever, so we subtract 1 off the hops
-      // but with Math.max(1) included.
-      const ensureAnalysisHops = Math.max(1, analyzeHopsInclusive - 1);
-
       if (meta.parentsym) {
-        symInfo.parentSym = this.lookupRawSymbol(
-          meta.parentsym, ensureAnalysisHops);
+        symInfo.parentSym = this.lookupRawSymbol(meta.parentsym);
       }
 
       if (meta.srcsym) {
-        const srcSym = symInfo.srcSym =
-          this.lookupRawSymbol(meta.srcsym, ensureAnalysisHops);
+        const srcSym = symInfo.srcSym = this.lookupRawSymbol(meta.srcsym);
         symInfo.inEdges.add(srcSym);
         srcSym.outEdges.add(symInfo);
         srcSym.markDirty();
@@ -436,7 +447,7 @@ export default class KnowledgeBase {
 
       if (meta.targetsym) {
         const targetSym = symInfo.targetSym =
-          this.lookupRawSymbol(meta.targetsym, ensureAnalysisHops);
+          this.lookupRawSymbol(meta.targetsym);
         symInfo.outEdges.add(targetSym);
         targetSym.inEdges.add(symInfo);
         targetSym.markDirty();
@@ -444,7 +455,7 @@ export default class KnowledgeBase {
 
       if (meta.idlsym) {
         symInfo.idlSym =
-          this.lookupRawSymbol(meta.idlsym, ensureAnalysisHops);
+          this.lookupRawSymbol(meta.idlsym);
         // The IDL symbol doesn't have any graph relevance since it already
         // would have provided us with the srcsym and targetsym relations.
       }
@@ -452,23 +463,28 @@ export default class KnowledgeBase {
       if (meta.supers) {
         symInfo.supers = meta.supers.map(raw => {
           const o = Object.assign({}, raw);
-          o.symInfo = this.lookupRawSymbol(raw.sym, ensureAnalysisHops);
+          o.symInfo = this.lookupRawSymbol(raw.sym);
           return o;
         });
       }
 
       if (meta.subclasses) {
-        symInfo.subclasses = meta.subclasses.map(rawSym => {
-          const o = {};
-          o.symInfo = this.lookupRawSymbol(rawSym, ensureAnalysisHops);
-          return o;
-        });
+        if (meta.subclasses.length >= EXCESSIVE_SUBCLASSES) {
+          symInfo.subclasses = [];
+          this.symbolAnalyzer.markExcessive(symInfo, 'SUBCLASSES');
+        } else {
+          symInfo.subclasses = meta.subclasses.map(rawSym => {
+            const o = {};
+            o.symInfo = this.lookupRawSymbol(rawSym);
+            return o;
+          });
+        }
       }
 
       if (meta.methods) {
         symInfo.methods = meta.methods.map((raw) => {
           const o = Object.assign({}, raw);
-          o.symInfo = this.lookupRawSymbol(raw.sym, ensureAnalysisHops);
+          o.symInfo = this.lookupRawSymbol(raw.sym);
           return o;
         });
       }
@@ -476,7 +492,7 @@ export default class KnowledgeBase {
       if (meta.fields) {
         symInfo.fields = meta.fields.map((raw) => {
           const o = Object.assign({}, raw);
-          o.symInfo = this.lookupRawSymbol(raw.sym, ensureAnalysisHops);
+          o.symInfo = this.lookupRawSymbol(raw.sym);
           return o;
         });
       }
@@ -484,7 +500,7 @@ export default class KnowledgeBase {
       if (meta.overrides) {
         symInfo.overrides = meta.overrides.map((raw) => {
           const o = Object.assign({}, raw);
-          o.symInfo = this.lookupRawSymbol(raw.sym, ensureAnalysisHops);
+          o.symInfo = this.lookupRawSymbol(raw.sym);
           return o;
         });
       }
@@ -492,21 +508,22 @@ export default class KnowledgeBase {
       if (meta.overriddenBy) {
         symInfo.overridenBy = meta.overriddenBy.map(rawSym => {
           const o = {};
-          o.symInfo = this.lookupRawSymbol(rawSym, ensureAnalysisHops);
+          o.symInfo = this.lookupRawSymbol(rawSym);
           return o;
         });
       }
     }
 
-
     // ## Consume "consumes"
     if (rawSymInfo.consumes) {
       for (let consumedInfo of rawSymInfo.consumes) {
         const consumedSym = this.lookupRawSymbol(
-          this.normalizeSymbol(consumedInfo.sym), analyzeHopsInclusive - 1,
-          consumedInfo.pretty,
+          consumedInfo.sym,
+          {
+            prettyName: consumedInfo.pretty,
           // XXX it might be nice for consumes to provide the def location/filetype.
-          { semanticKind: consumedInfo.kind });
+            semanticKind: consumedInfo.kind,
+          });
 
         symInfo.outEdges.add(consumedSym);
         consumedSym.inEdges.add(symInfo);
@@ -530,7 +547,6 @@ export default class KnowledgeBase {
                 this.lookupSourceFile(
                   path,
                   {
-                    analyze: analyzeHopsInclusive > 1,
                     considerHeader: true
                   });
               symInfo.sourceFileInfo.fileSymbolDefs.add(symInfo);
@@ -571,22 +587,35 @@ export default class KnowledgeBase {
               symInfo.declLocation = { lno: line.lno, bounds: line.bounds };
             }
           }
-          else if (useType === 'uses' && pathLinesArray.length < MAX_USE_PATHLINES_LIMIT) {
-            for (const pathLines of pathLinesArray) {
-              for (const lineResult of pathLines.lines) {
-                if (lineResult.contextsym) {
-                  const contextSym = this.lookupRawSymbol(
-                    // XXX currently the uses will have commas
-                    this.normalizeSymbol(lineResult.contextsym, true), analyzeHopsInclusive - 1,
-                    lineResult.context,
-                    // Provide a path for pretty name mangling normalization.
-                    { somePath: pathLines.path,
-                      // See note above about the presumption here.
-                      semanticKind: usesSemanticKind });
+          else if (useType === 'uses') {
+            // NOTE!  This is a limit on the number of files with matches, not
+            // on the number of matches!  See its docs!
+            if (pathLinesArray.length >= MAX_USE_PATHLINES_LIMIT) {
+              this.symbolAnalyzer.markExcessive(symInfo, 'USES');
+              // If this symbol is eligible for call relationships, then this is
+              // technically also an overflow of calls into it.
+              if (symInfo.isCallable()) {
+                this.symbolAnalyzer.markExcessive(symInfo, 'DIRECTLY_CALLED_BY');
+              }
+            } else {
+              for (const pathLines of pathLinesArray) {
+                for (const lineResult of pathLines.lines) {
+                  if (lineResult.contextsym) {
+                    const contextSym = this.lookupRawSymbol(
+                      // XXX currently the uses will have commas
+                      this.normalizeSymbol(lineResult.contextsym, true),
+                      {
+                        prettyName: lineResult.context,
+                        // Provide a path for pretty name mangling normalization.
+                        somePath: pathLines.path,
+                        // See note above about the presumption here.
+                        semanticKind: usesSemanticKind
+                      });
 
-                  symInfo.inEdges.add(contextSym);
-                  contextSym.outEdges.add(symInfo);
-                  contextSym.markDirty();
+                    symInfo.inEdges.add(contextSym);
+                    contextSym.outEdges.add(symInfo);
+                    contextSym.markDirty();
+                  }
                 }
               }
             }
@@ -594,6 +623,9 @@ export default class KnowledgeBase {
         }
       }
     }
+
+    // Let's assume something in this method changes the symbol.
+    symInfo.markDirty();
   }
 
   async _analyzeFile(fileInfo) {
@@ -604,31 +636,6 @@ export default class KnowledgeBase {
     // improved some potentially incorrect logic, but I'm also setting this to 1
     // for now.
     this.fileAnalyzer.analyzeFile(fileInfo, data, 1);
-  }
-
-  /**
-   * Dig up info on a symbol by:
-   * - Running a searchfox search on the symbol.
-   * - Processing def/decl results.
-   * - Populate incoming edge information from the "uses" results.
-   * - Populate outgoing edge information from the "consumes" results.
-   */
-  async _analyzeSymbol(symInfo, analyzeHopsInclusive) {
-    // Perform the raw Searchfox search.
-    const filteredResults =
-      await this.grokCtx.performAsyncSearch(`symbol:${symInfo.rawName}`);
-
-    const raw = filteredResults.rawResultsList[0].raw;
-
-    for (const [rawSym, rawSymInfo] of Object.entries(raw.semantic || {})) {
-      if (rawSymInfo.symbol !== symInfo.rawName) {
-        console.warn('ignoring search result for', rawSymInfo.symbol,
-                     'received from lookup of', symInfo.rawName);
-        continue;
-      }
-
-      this._processSymbolRawSymInfo(symInfo, rawSymInfo, analyzeHopsInclusive);
-    }
   }
 
   /**
@@ -695,8 +702,9 @@ export default class KnowledgeBase {
     }
 
     for (const symName of (gdef.symbols || [])) {
-      const symInfo = this.lookupRawSymbol(symName, 2);
-      symPromises.push(this.ensureSymbolAnalysis(symInfo, 1));
+      const symInfo = this.lookupRawSymbol(symName);
+      symPromises.push(
+        this.ensureSymbolAnalysis(symInfo, { analysisMode: 'context' }));
     }
 
     const idResults = await Promise.all(idPromises);
