@@ -13,7 +13,7 @@ source $INDEX_ROOT/config
 cd $INDEX_ROOT/files
 for f in *.cpp
 do
-  $CXX -DTEST_MACRO1 -DTEST_MACRO2 $f -std=c++17 -c -o $OBJDIR/${f%%.cpp}.o -Wall
+  $CXX -DTEST_MACRO1 -DTEST_MACRO2 -I. $f -std=c++17 -c -o $OBJDIR/${f%%.cpp}.o -Wall
 done
 
 export CARGO_TARGET_DIR=$OBJDIR
