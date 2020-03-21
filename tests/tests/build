@@ -6,14 +6,34 @@ set -o pipefail # Check all commands in a pipeline
 
 mkdir -p $OBJDIR
 
+# It's handy to be able to have the clang JSON AST output around, let's build a
+# parallel output tree.
+AST_ROOT=$INDEX_ROOT/ast
+mkdir -p $AST_ROOT
+
 # Add the special clang flags.
 $MOZSEARCH_PATH/scripts/indexer-setup.py > $INDEX_ROOT/config
 source $INDEX_ROOT/config
 
+# XXX this is a super-big hack to get clang 10 because of JSON dump explosions
+# it currently assumes that the clang plugin build also ends up using the
+# default "clang"
+#CC=${CC/clang-9/clang}
+#CXX=${CXX/clang++-9/clang++}
+
 cd $INDEX_ROOT/files
 for f in *.cpp
 do
+  # we need c++17 for various MFBT things which depend on mozilla-central being
+  # c++17 (see
+  # https://groups.google.com/d/msg/mozilla.dev.platform/ygj-1MDVB4M/CLxE_7OcBAAJ
+  # for more info).
   $CXX -DTEST_MACRO1 -DTEST_MACRO2 -I. $f -std=c++17 -c -o $OBJDIR/${f%%.cpp}.o -Wall
+  # Create the AST output and compress it with xz at a fast compression level.
+  # uncompressed, TestRefPtr.cpp was 113M. `xz -0` is 3.6M `xz -1` is 2.9M.
+  #
+  # This can potentially fail
+  $CXX -DTEST_MACRO1 -DTEST_MACRO2 -I. -Xclang -ast-dump=json -fsyntax-only $f -std=c++17 | xz -1 > $AST_ROOT/$f.xz || echo SKIP
 done
 
 export CARGO_TARGET_DIR=$OBJDIR
