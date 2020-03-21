@@ -89,23 +89,27 @@ export default class FileAnalyzer {
    * - The production servers basically can only handle 2 requests in parallel
    *   anyways.
    */
-  async analyzeFile(finfo, data, analyzeHopsInclusiveForSymbols) {
+  async _analyzeFileData(finfo, data) {
     const kb = this.kb;
 
     for (const rec of data) {
-      // Skip target records.
+      // Skip records that aren't source records.
       if (!rec.source) {
         continue;
       }
-      // We've got a source record, hooray!
+      // Skip records that aren't definitions
+      const syntaxKinds = rec.syntax.split(',');
+      if (!syntaxKinds.includes('def')) {
+        continue;
+      }
 
       // This may absolutely have multiple symbols, normalize to the first for
       // now with the presumption it's the most specific one.
       const symName = kb.normalizeSymbol(rec.sym, true);
 
       // XXX we could provide the path info?
-      const symInfo = kb.lookupRawSymbol(symName, 0);
-      await kb.ensureSymbolAnalysis(symInfo, analyzeHopsInclusiveForSymbols);
+      const symInfo = kb.lookupRawSymbol(symName);
+      await kb.ensureSymbolAnalysis(symInfo, 'from-file');
     }
 
     return finfo;

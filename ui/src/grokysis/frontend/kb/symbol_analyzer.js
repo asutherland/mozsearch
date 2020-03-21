@@ -160,6 +160,9 @@ const SYMBOL_ANALYSIS_TRAVERSALS = [
     },
     traverseNext: ['SUBCLASSES'],
   },
+  // XXX: This should have a next traversal that causes the parent symbol to
+  // traverse all of its fields and methods.  Either RECORD or FIELDS and
+  // METHODS
   {
     name: 'PARENT',
     bit: 1 << (SPECIAL_BIT_COUNT + 2),
@@ -217,9 +220,16 @@ const SYMBOL_ANALYSIS_TRAVERSALS = [
 const SYMBOL_ANALYSIS_MODES = [
   {
     name: 'context',
-    // XXX Add in a `FILE` traversal mechanism which triggers file analysis.
-    // Maybe this should be be a separate flag on the mode here?
     traversals: ['SELF', 'SUPERCLASSES', 'SUBCLASSES', 'PARENT'],
+    traversFile: true,
+    /// `traversalInfos` will be clobbered into place and reference the objects
+    /// found in SYMBOL_ANALYSIS_TRAVERSALS
+    traversalInfos: null,
+  },
+  {
+    name: 'from-file',
+    traversals: ['SELF'],
+    traverseFile: false,
     /// `traversalInfos` will be clobbered into place and reference the objects
     /// found in SYMBOL_ANALYSIS_TRAVERSALS
     traversalInfos: null,
@@ -423,6 +433,9 @@ export default class SymbolAnalyzer {
     const modeInfo = this.modesByName.get(mode);
     for (const traversalInfo of modeInfo.traversalInfos) {
       this._planSymbolTraversal(task, task.initialSym, traversalInfo);
+    }
+    if (modeInfo.traverseFile) {
+
     }
     task.modes.add(mode);
     this._maybeSpinUpWork();
