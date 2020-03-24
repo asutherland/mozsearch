@@ -20,7 +20,7 @@
     "remark-parse": "^7.0.2",
     "remark-rehype": "^5.0.0",
     "semantic-ui-css": "^2.4.1",
-    "semantic-ui-react": "^0.82.5",
+    "semantic-ui-react": "^0.88.2",
     "split.js": "^1.5.11",
     "toml": "^2.3.6",
     "unified": "^8.4.2",

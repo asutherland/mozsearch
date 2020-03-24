@@ -40,7 +40,9 @@ export default class StaticSourceViewSheet extends DirtyingComponent {
       const { pathInfo, hash } =
         grokCtx.historyHelper.getCurrentLocationState();
       if (pathInfo.rest === this.model.path && hash) {
-        window.scrollIntoView(hash.slice(1));
+        // This is from dxr.js and handles making an element with the numeric id
+        // in question which lets the browser do its own scrolling thing.
+        window.createSyntheticAnchor(hash.slice(1));
       }
     }
   }

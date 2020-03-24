@@ -23,6 +23,22 @@ export default class SessionPopupContainer extends DirtyingComponent {
     this.popupManager = this.sessionManager.popupManager;
 
     this.lastPopupInfo = null;
+
+    this._bound_linkClickHandler = this.onLinkClick.bind(this);
+  }
+
+
+  onLinkClick(evt) {
+    if (evt.target.tagName !== 'A' || !evt.target.href) {
+      return;
+    }
+
+    const grokCtx = this.sessionManager.grokCtx;
+    if (grokCtx.historyHelper.navigateTo(evt.target.href)) {
+      evt.preventDefault();
+      evt.stopPropagation();
+      this.popupManager.popupClosed(this.lastPopupInfo);
+    }
   }
 
   render() {
@@ -32,6 +48,7 @@ export default class SessionPopupContainer extends DirtyingComponent {
 
     let widgetInfo;
     let context = null;
+    let offset = null;
 
     if (isOpen) {
       if (this.lastPopupInfo === popupInfo) {
@@ -42,7 +59,23 @@ export default class SessionPopupContainer extends DirtyingComponent {
             popupInfo.payload, this.props.grokCtx, popupInfo.sessionThing);
       }
       this.lastPopupInfo = popupInfo;
-      context = popupInfo.context;
+      // The original searchfox popup and the DXR popup before it were always
+      // positioned based on the click position.  The Popup widget we're using
+      // likes to position things relative to the edges of elements, but can
+      // be offset.  We could abandon using this widget in favor of our own
+      // absolute positioning (as the original does), but it's nice to have the
+      // menu bumped so that it's visible.
+      //
+      // So for now we target the popup at the bottom left but with an offset so
+      // that it's closer to the mouse.
+      const evt = popupInfo.triggeringEvent;
+      if (evt) {
+        context = evt.target;
+        const bounds = evt.target.getBoundingClientRect();
+        const x = evt.clientX - bounds.left;
+        const y  = evt.clientY - bounds.top;
+        offset = `${Math.floor(x)}, 0`;
+      }
       //console.log("showing popup", widgetInfo, popupInfo, "context:", context);
     } else {
       this.lastPopupInfo = null;
@@ -52,15 +85,18 @@ export default class SessionPopupContainer extends DirtyingComponent {
 
     return (
       <Popup {...widgetInfo.popupProps}
+        ref={ this.rootRef }
         className={ this.props.className }
         open={ isOpen }
         context={ context }
+        offset={ offset }
+        basic
+        flowing
         position="bottom left"
+        onClick={ this._bound_linkClickHandler }
         onClose={ () => { popupManager.popupClosed(popupInfo); } }
         >
-        <Popup.Content>
           { widgetInfo.contents }
-        </Popup.Content>
       </Popup>
     );
   }

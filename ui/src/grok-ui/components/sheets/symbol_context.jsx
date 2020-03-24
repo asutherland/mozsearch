@@ -88,7 +88,7 @@ export class SymbolContextSheet extends DirtyingComponent {
           className="symbolContextCard"
           >
           { maybePath }
-          <pre>{ symInfo.declPeek }</pre>
+          <code className="source-block">{ symInfo.declPeek }</code>
         </div>
       );
     }
@@ -112,7 +112,7 @@ export class SymbolContextSheet extends DirtyingComponent {
           className="symbolContextCard"
           >
           { maybePath }
-          <pre>{ symInfo.defPeek }</pre>
+          <code className="source-block">{ symInfo.defPeek }</code>
         </div>
       );
     }

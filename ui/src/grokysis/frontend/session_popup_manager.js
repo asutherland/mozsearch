@@ -18,7 +18,7 @@ export default class SessionPopupManager extends EE {
     this.popupInfo = null;
   }
 
-  showPopup(sessionThing, type, payload, context) {
+  showPopup(sessionThing, type, payload, triggeringEvent) {
     const binding = this.manager.popupBindings[type];
     if (!binding) {
       throw new Error('no such binding: ' + type);
@@ -28,7 +28,7 @@ export default class SessionPopupManager extends EE {
       type,
       binding,
       payload,
-      context,
+      triggeringEvent,
       sessionThing
     };
     this.serial++;

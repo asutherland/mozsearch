@@ -29,6 +29,7 @@ import { SymbolContextSheetBinding } from './components/sheets/symbol_context.js
 import { StaticSourceViewBinding } from './components/sheets/static_source_view.jsx';
 
 import KBSymbolInfoPopup from './components/popups/kb_symbol_info.jsx';
+import ClassicSearchfoxMenu from './components/popups/classic_searchfox_menu.jsx';
 
 import GrokAnalysisFrontend from '../grokysis/frontend.js';
 
@@ -95,16 +96,17 @@ function makeGrokContext() {
 
       popupBindings: {
         symbolInfo: {
-          factory: ({ symInfo, fromSymInfo }, grokCtx, sessionThing) => {
+          factory: (props, grokCtx, sessionThing) => {
             // Trigger full analysis of the symbol.
-            grokCtx.kb.ensureSymbolAnalysis(symInfo, { analysisMode: 'context' });
+            if (props.symInfo) {
+              grokCtx.kb.ensureSymbolAnalysis(props.symInfo, { analysisMode: 'context' });
+            }
             return {
               popupProps: {},
               contents: (
-                <KBSymbolInfoPopup
+                <ClassicSearchfoxMenu
+                  {...props}
                   grokCtx={ grokCtx }
-                  symInfo={ symInfo }
-                  fromSymInfo={ fromSymInfo }
                   sessionThing={ sessionThing }
                   />
               )
@@ -145,6 +147,7 @@ function semanticInfoFromTarget(target, ancestorCheck) {
   let jumps = null, searches = null, symbolNames = null;
   let rawMetaInfo = null, symInfo = null, visibleTokenText = null;
   let nestingSymInfo = null;
+  let lineNumber = null;
 
   let inAncestor = ancestorCheck && target.closest(ancestorCheck) && true;
 
@@ -153,6 +156,14 @@ function semanticInfoFromTarget(target, ancestorCheck) {
                    gContentTrack.selectedThing.fileInfo;
 
   const win = target.ownerDocument.defaultView;
+
+  const lineElem = target.closest('.source-line');
+  if (lineElem) {
+    const lineMatch = (/^line-(\d+)$/).exec(lineElem.id);
+    if (lineMatch) {
+      lineNumber = parseInt(lineMatch[1], 10);
+    }
+  }
 
   const iElem = target.closest('[data-i]');
   if (iElem && fileInfo) {
@@ -199,7 +210,7 @@ function semanticInfoFromTarget(target, ancestorCheck) {
   }
 
   return { jumps, searches, symbolNames, rawMetaInfo, symInfo, visibleTokenText,
-           nestingSymInfo, inAncestor };
+           nestingSymInfo, inAncestor, fileInfo, lineNumber };
 }
 
 
@@ -208,7 +219,7 @@ class SymbolHighlighter {
     this.highlightedGroupsByName = new Map();
   }
 
-  highlightSymbolsWithToken(groupName, symbolNames, visibleTokenText) {
+  highlightSymbolsWithToken(groupName, symbolNames, visibleTokenText, toggle=false) {
     const existingGroupInfo = this.highlightedGroupsByName.get(groupName);
     // We might be better off having this method take the pre-symbolsFromString
     // string value so we don't need to re-stringify, but the cost of this is
@@ -216,7 +227,11 @@ class SymbolHighlighter {
     if (existingGroupInfo &&
         existingGroupInfo.visibleTokenText === visibleTokenText &&
         existingGroupInfo.symbolNames.toString() === symbolNames.toString()) {
-      // Nothing to do if we already highlighted the things in question.
+      // Nothing to do if we already highlighted the things in question unless
+      // we're in toggle mode.
+      if (toggle) {
+        this.stopHighlightingGroup(groupName);
+      }
       return;
     }
 
@@ -303,7 +318,8 @@ function onSourceMouseMove(evt) {
  * Handle a click inside a source listing and display a menu.
  */
 function onSourceClick(evt) {
-  const { symInfo, nestingSymInfo, inAncestor } =
+  const { symInfo, nestingSymInfo, inAncestor, fileInfo, lineNumber,
+          symbolNames, visibleTokenText } =
     semanticInfoFromTarget(evt.target, "#content");
 
   if (!symInfo) {
@@ -326,9 +342,16 @@ function onSourceClick(evt) {
       "symbolInfo",
       {
         symInfo,
-        fromSymInfo: nestingSymInfo
+        fromSymInfo: nestingSymInfo,
+        fileInfo,
+        lineNumber,
+        visibleTokenText,
+        highlightClickedThing: () => {
+          gHighlighter.highlightSymbolsWithToken(
+            "sticky-highlight", symbolNames, visibleTokenText, 'toggle');
+        }
       },
-      evt.target);
+      evt);
   }
 }
 
@@ -363,7 +386,7 @@ function createPopupWidget() {
   const popupTags = (
     <div>
       <SessionPopupContainer
-        className="searchfox-popup-root"
+        className="searchfox-popup-root stop-the-padding"
         grokCtx={ gGrokCtx }
         />
     </div>
@@ -411,6 +434,14 @@ class HistoryHelper {
     return this.buildSourceURL(path, line);
   }
 
+  buildSourceURLForSymbolDecl(symInfo) {
+    // For now, this is just a direct line link, but in the future could have
+    // a more fancy hash encoding.
+    const path = symInfo.declFileInfo.path;
+    const line = symInfo.declLocation && symInfo.declLocation.lno;
+    return this.buildSourceURL(path, line);
+  }
+
   buildSearchURLForString(str) {
     return `/${this.treeName}/sorch?q=${encodeURIComponent(str)}`;
   }
@@ -440,8 +471,7 @@ class HistoryHelper {
     }
 
     history.pushState({}, '', url);
-    this.onPopState('internal');
-    return true;
+    return this.onPopState('internal');
   }
 
   /**
@@ -480,14 +510,22 @@ class HistoryHelper {
     }
 
     const alreadyVisible = this.contentTrack.selectedThing === thing;
+    console.log('onPopState handler:', existed, alreadyVisible, hash);
     this.contentTrack.selectThing(thing);
     // If the source view already existed and was already displayed, then it's
     // likely the DOM has already been attached.  If the DOM is already attached
     // then `StaticSourceViewSheet` won't attempt to call scrollIntoView, which
     // means we need to do it here.
     if (existed && alreadyVisible && hash) {
-      window.scrollIntoView(hash.slice(1));
+      // This is from dxr.js and handles making an element with the numeric id
+      // in question which lets the browser do its own scrolling thing in cases
+      // where we aren't doing history API stuff.
+      window.createSyntheticAnchor(hash.slice(1));
+      // Do not prevent the link traversal.
+      return false;
     }
+
+    return true;
   }
 }
 

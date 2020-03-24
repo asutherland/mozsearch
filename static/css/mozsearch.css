@@ -187,6 +187,14 @@ td#line-numbers {
     white-space: pre;
     flex-grow: 1;
 }
+/* For multi-line <code> blocks like peekLines. */
+.source-block {
+    display: block;
+    white-space: pre;
+    line-height: 1.3;
+    font-size: 12px;
+    padding-top: 4px;
+}
 
 .source-line-with-number.stuck {
   background: var(--sticky-header-bgcolor);
@@ -1106,6 +1114,25 @@ body.old-rev #fixed-header .search-box {
 .searchfox-popup-root {
   box-sizing: border-box;
 }
+
+/* The Semantic UI popup really isn't expecting to be used to contain a menu,
+   so we want this to make the popup more menu-like.  Without the padding, the
+   menu's display ends up coinciding with the popup's display. */
+.ui.popup.stop-the-padding {
+  padding: 0 !important;
+  /* We also don't really need the padding relative to the element.  Visually,
+     it's nice, but legacy behavior is to minimize padding. */
+  margin: 0 !important;
+  white-space: nowrap;
+}
+
+/* Semantic UI insists that menu icons go on the right, which deviates from
+ * searchfox's longstanding behavior, so we force them to live on the left.
+ */
+.ui.vertical.menu .item>i.icon {
+    float: left !important;
+    margin:0 0.5em 0 -0.5em !important;
+   }
 
 /* This div exists as a place for other static searchfox source pages to be
  * loaded as iframes so that the HTML can asynchronously be parsed off the main

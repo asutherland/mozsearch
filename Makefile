@@ -21,7 +21,8 @@ build-rust-tools:
 	cd tools && rustup run nightly cargo build --release
 
 build-ui:
-	cd ui && npm install && npm run-script build
+	echo "FIXME XXX re-enable once dev loop is over"
+	#cd ui && npm install && npm run-script build
 
 test-rust-tools:
 	cd tools && rustup run nightly cargo test --release --verbose
