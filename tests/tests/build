@@ -33,7 +33,7 @@ do
   # uncompressed, TestRefPtr.cpp was 113M. `xz -0` is 3.6M `xz -1` is 2.9M.
   #
   # This can potentially fail
-  $CXX -DTEST_MACRO1 -DTEST_MACRO2 -I. -Xclang -ast-dump=json -fsyntax-only $f -std=c++17 | xz -1 > $AST_ROOT/$f.xz || echo SKIP
+  clang++${CLANG_SUFFIX} -DTEST_MACRO1 -DTEST_MACRO2 -I. -Xclang -ast-dump=json -fsyntax-only $f -std=c++17 | xz -1 > $AST_ROOT/$f.xz || echo SKIP
 done
 
 export CARGO_TARGET_DIR=$OBJDIR
