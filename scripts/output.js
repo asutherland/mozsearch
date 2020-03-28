@@ -240,10 +240,6 @@ function generateFancy(content, opt)
   <span id="state" data-offset="${stateOffset}" data-limit="${stateLimit}" data-result-count="${resultCount}" data-eof="${eof}"></span>
 
   <script src="/static/js/libs/jquery-2.1.3.min.js"></script>
-  <script src="/static/js/utils.js"></script>
-  <script src="/static/js/dxr.js"></script>
-  <script src="/static/js/filter.js"></script>
-  <script src="/static/js/panel.js"></script>
   <script src="/static/js/code-highlighter.js"></script>
   <script src="/ui/searchfox-ui.bundle.js"></script>
 </div>

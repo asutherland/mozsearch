@@ -90,7 +90,9 @@ function makeGrokContext() {
           // The content track is substantially characterized by the URL so
           // there's no need to persist any of it.  We can move to persisting
           // things in the history API's state, but that's future work.
-          persist: false
+          persist: false,
+          // The HistoryHelper will clobber its own listener into place here.
+          onSelectionChange: null,
         }
       },
 
@@ -402,6 +404,13 @@ class HistoryHelper {
 
     this._bound_onPopState = this.onPopState.bind(this, 'window');
     window.addEventListener('popstate', this._bound_onPopState);
+
+    this._bound_onHashChange = this.onHashChange.bind(this);
+    window.addEventListener('hashchange', this._bound_onHashChange);
+
+    this._bound_onTrackSelectionChange = this.onTrackSelectionChange.bind(this);
+    this.contentTrack.trackSettings.onSelectionChange =
+      this._bound_onTrackSelectionChange;
   }
 
   parseSearchfoxPath(pathname) {
@@ -419,7 +428,7 @@ class HistoryHelper {
     const queryParams =
       Object.fromEntries(curUrl.searchParams.entries());
 
-    return { pathInfo, queryParams, hash: curUrl.hash };
+    return { pathInfo, queryParams, hash: curUrl.hash, href: curUrl.href };
   }
 
   buildSourceURL(path, line) {
@@ -470,8 +479,23 @@ class HistoryHelper {
       return false;
     }
 
+    // It's essential we provide a value for state that is not equal to the
+    // previous value or we won't actually see a 'popstate' event.  A fresh
+    // object is sufficient for this purpose.
     history.pushState({}, '', url);
     return this.onPopState('internal');
+  }
+
+  /**
+   * When the window dispatches a 'hashchange' we make sure to update the
+   * current sessionThing's sessionMeta.url which is what we'll restore the URL
+   * to if the user ever switches back to this sessionThing via tabbed UI.
+   */
+  onHashChange() {
+    if (this.contentTrack.selectedThing) {
+      const { spec } = this.getCurrentLocationState();
+      this.contentTrack.selectedThing.sessionMeta.url = spec;
+    }
   }
 
   /**
@@ -479,7 +503,8 @@ class HistoryHelper {
    * well as if our `navigateTo` helper is used.
    */
   onPopState(/* source */) {
-    const { pathInfo, queryParams, hash } = this.getCurrentLocationState();
+    const { pathInfo, queryParams, hash, href } =
+      this.getCurrentLocationState();
 
     let thing, existed;
     switch (pathInfo.route) {
@@ -509,23 +534,87 @@ class HistoryHelper {
       }
     }
 
+    thing.sessionMeta.url = href;
+
     const alreadyVisible = this.contentTrack.selectedThing === thing;
     console.log('onPopState handler:', existed, alreadyVisible, hash);
-    this.contentTrack.selectThing(thing);
+    this.contentTrack.selectThing(thing, 'popstate');
     // If the source view already existed and was already displayed, then it's
     // likely the DOM has already been attached.  If the DOM is already attached
-    // then `StaticSourceViewSheet` won't attempt to call scrollIntoView, which
-    // means we need to do it here.
+    // then `StaticSourceViewSheet` won't attempt to call createSyntheticAnchor,
+    // which means we need to do it here.
     if (existed && alreadyVisible && hash) {
       // This is from dxr.js and handles making an element with the numeric id
       // in question which lets the browser do its own scrolling thing in cases
       // where we aren't doing history API stuff.
-      window.createSyntheticAnchor(hash.slice(1));
+      this.createSyntheticAnchor(hash.slice(1));
       // Do not prevent the link traversal.
       return false;
     }
 
     return true;
+  }
+
+  /**
+   * Notification from the session tabbed UI that the user is switching the
+   * selected sessionThing and therefore that we should update the URL (and
+   * potentially restore scroll positions).
+   *
+   * @param {SessionThing} oldThing
+   * @param {SessionThing} newThing
+   * @param {'popstate'|'click'} source
+   */
+  onTrackSelectionChange(oldThing, newThing, source) {
+    if (newThing && newThing.sessionMeta.url && source === 'click') {
+      history.pushState({}, '', newThing.sessionMeta.url);
+    }
+  }
+
+  /**
+   * Invoked by the StaticSourceViewSheet when its HTML content has been
+   * attached into the DOM and we should perform any scrolling.
+   *
+   * @param {*} sessionThing
+   * @param {*} rootNode
+   */
+  onContentHTMLAttached(sessionThing, thingPath/*, rootNode */) {
+    const { pathInfo, hash } = this.getCurrentLocationState();
+    if (pathInfo.rest === thingPath && hash) {
+      // This is from dxr.js and handles making an element with the numeric id
+      // in question which lets the browser do its own scrolling thing.
+      this.createSyntheticAnchor(hash.slice(1));
+    }
+  }
+
+  /**
+   * Creates a synthetic anchor for all hash configurations, even ones that
+   * highlight more than one line and therefore can't be understood by the
+   * browser's native anchor-seeking like "#200-205" and "#200,205".
+   *
+   * Even if it seemed like a good idea to attempt to manually trigger this
+   * scrolling on load and the "hashchange" event, Firefox notably will manually
+   * seek to an anchor if you press the enter key in the location bar and have not
+   * changed the hash.  This is a UX flow used by many developers, so it's
+   * essential the synthetic anchor is in place.  For this reason, any
+   * manipulation of history state via replaceState must call this method.
+   *
+   * This synthetic anchor also doubles as a means of creating sufficient padding
+   * so that "position:sticky" stuck lines don't obscure the line we're seeking
+   * to.  (That's what the "goto" class accomplishes.)  Please see mosearch.css
+   * for some additional details and context here.
+   */
+  createSyntheticAnchor(id) {
+    if (document.getElementById(id)) {
+      return;
+    }
+
+    var firstLineno = id.split(/[,-]/)[0];
+    var elt = document.getElementById("l" + firstLineno);
+
+    var gotoElt = document.createElement("div");
+    gotoElt.id = id;
+    gotoElt.className = "goto";
+    elt.appendChild(gotoElt);
   }
 }
 
@@ -609,6 +698,7 @@ function replaceUIWithOverwhelmingComplexity() {
   // ## Pivot the existing source content into its FileInfo
   const { pathInfo, queryParams } = gHistoryHelper.getCurrentLocationState();
 
+  let thing;
   if (pathInfo.route === 'source') {
     const fileInfo = gGrokCtx.kb.lookupSourceFile(pathInfo.rest, {});
     fileInfo.domTree = document.getElementById('content');
@@ -622,7 +712,7 @@ function replaceUIWithOverwhelmingComplexity() {
       byeScript.parentNode.removeChild(byeScript);
     }
 
-    contentTrack.addThing(null, null, {
+    thing = contentTrack.addThing(null, null, {
       type: 'sourceView',
       persisted: {
         path: fileInfo.path,
@@ -633,7 +723,7 @@ function replaceUIWithOverwhelmingComplexity() {
     // elem is removed for this case.  We don't bother saving off the content
     // since all it contained of use was this global.
     const rawResults = window.SEARCH_RESULTS;
-    contentTrack.addThing(null, null, {
+    thing = contentTrack.addThing(null, null, {
       type: 'searchResults',
       persisted: {
         queryParams,
@@ -643,6 +733,8 @@ function replaceUIWithOverwhelmingComplexity() {
       },
     });
   }
+
+  thing.sessionMeta.url = window.location.toString();
 
   const oldContentElem = document.getElementById('content');
   const newContentContainer = document.createElement('div');

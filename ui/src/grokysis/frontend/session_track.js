@@ -15,7 +15,7 @@ export default class SessionTrack extends EE {
 
     this.manager = manager;
     this.name = name;
-    this.trackSettings = trackSettings;
+    this.trackSettings = trackSettings || {};
 
     this.things = [];
 
@@ -79,9 +79,12 @@ export default class SessionTrack extends EE {
    * Explicitly select the given thing in this track to be the `selectedThing`,
    * dirtying the track to cause a re-render, plus persisting the state change.
    */
-  selectThing(thing) {
+  selectThing(thing, source) {
     if (this.selectedThing === thing) {
       return;
+    }
+    if (this.trackSettings.onSelectionChange) {
+      this.trackSettings.onSelectionChange(this.selectedThing, thing, source);
     }
     if (this.selectedThing) {
       const oldThing = this.selectedThing;

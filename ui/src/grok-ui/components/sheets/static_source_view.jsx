@@ -37,13 +37,8 @@ export default class StaticSourceViewSheet extends DirtyingComponent {
       // trigger the hash scrolling.  Note that HistoryHelper.onPopState also
       // tries to do the exact same thing, so in the event of a doc change
       const grokCtx = this.model.sessionThing.grokCtx;
-      const { pathInfo, hash } =
-        grokCtx.historyHelper.getCurrentLocationState();
-      if (pathInfo.rest === this.model.path && hash) {
-        // This is from dxr.js and handles making an element with the numeric id
-        // in question which lets the browser do its own scrolling thing.
-        window.createSyntheticAnchor(hash.slice(1));
-      }
+      grokCtx.historyHelper.onContentHTMLAttached(
+        this.model.sessionThing, this.model.path, this.model.fileInfo.domTree);
     }
   }
 

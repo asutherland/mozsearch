@@ -35,7 +35,7 @@ export class SessionTabbedToolbar extends DirtyingComponent {
     const makeTabButtons = (track, activeThing) => {
       return track.things.map((thing) => {
         const selectThisThing = () => {
-          track.selectThing(thing);
+          track.selectThing(thing, 'click');
         };
         return (
           <Popup
