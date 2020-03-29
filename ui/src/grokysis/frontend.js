@@ -141,9 +141,9 @@ class GrokAnalysisFrontend {
     return filtered;
   }
 
-  ingestExistingSearchResults(rawSearchResults) {
+  ingestExistingSearchResults({ rawSearchResults }) {
     const filtered = new FilteredResults({
-      rawResultsList: [rawSearchResults],
+      rawResultsList: [new RawSearchResults(rawSearchResults)],
     });
     return filtered;
   }

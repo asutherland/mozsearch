@@ -26,17 +26,24 @@ export default class SymbolHit extends React.PureComponent {
   }
 
   render() {
+    const { grokCtx } = this.props;
     const { pretty, meta, hits } = this.props.rawSymInfo;
 
     const kindContentFactory = (pathHits, selected) => {
       // We propagate selected as 'group' for keying purposes so accordion
       // state doesn't contaminate when switching between groups.
-      return <PathHitList group={ selected } pathHits={ pathHits || [] } />;
+      return (
+        <PathHitList
+          grokCtx={ grokCtx }
+          group={ selected }
+          pathHits={ pathHits || [] }
+          />);
     };
 
     const pathkindContentFactory = (kindDict) => {
       return (
         <HitDict
+          grokCtx={ grokCtx }
           hitDict={ kindDict }
           contentFactory={ kindContentFactory }
           menu={{ attached: 'top' }}
@@ -78,6 +85,7 @@ export default class SymbolHit extends React.PureComponent {
           </Card.Header>
         </Card.Content>
         <HitDict
+          grokCtx={ grokCtx }
           hitDict={ hits }
           contentFactory={ pathkindContentFactory }
           menu={{ attached: 'top' }}

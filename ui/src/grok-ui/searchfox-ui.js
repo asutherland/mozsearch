@@ -30,6 +30,7 @@ import { StaticSourceViewBinding } from './components/sheets/static_source_view.
 
 import KBSymbolInfoPopup from './components/popups/kb_symbol_info.jsx';
 import ClassicSearchfoxMenu from './components/popups/classic_searchfox_menu.jsx';
+import FancyContextMenu from './components/popups/fancy_context_menu.jsx';
 
 import GrokAnalysisFrontend from '../grokysis/frontend.js';
 
@@ -97,7 +98,7 @@ function makeGrokContext() {
       },
 
       popupBindings: {
-        symbolInfo: {
+        classicSearchfoxMenu: {
           factory: (props, grokCtx, sessionThing) => {
             // Trigger full analysis of the symbol.
             if (props.symInfo) {
@@ -115,14 +116,34 @@ function makeGrokContext() {
             };
           }
         },
+
+        fancyContextMenu: {
+          factory: (props, grokCtx, sessionThing) => {
+            // Trigger full analysis of the symbol.
+            if (props.symInfo) {
+              grokCtx.kb.ensureSymbolAnalysis(props.symInfo, { analysisMode: 'context' });
+            }
+            return {
+              popupProps: {},
+              contents: (
+                <FancyContextMenu
+                  {...props}
+                  grokCtx={ grokCtx }
+                  sessionThing={ sessionThing }
+                  />
+              )
+            };
+          }
+        },
       },
 
       sheetBindings: {
-        searchField: SearchFieldBinding,
-        diagram: DiagramSheetBinding,
         blocklyDiagram: BlocklyDiagramEditorBinding,
-        symbolContext: SymbolContextSheetBinding,
+        diagram: DiagramSheetBinding,
+        searchField: SearchFieldBinding,
+        searchResults: SearchResultsBinding,
         sourceView: StaticSourceViewBinding,
+        symbolContext: SymbolContextSheetBinding,
       }
     }
   });
@@ -341,7 +362,7 @@ function onSourceClick(evt) {
   if (inAncestor) {
     gGrokCtx.sessionManager.popupManager.showPopup(
       gContentTrack.selectedThing,
-      "symbolInfo",
+      "classicSearchfoxMenu",
       {
         symInfo,
         fromSymInfo: nestingSymInfo,
@@ -354,6 +375,48 @@ function onSourceClick(evt) {
         }
       },
       evt);
+  }
+}
+
+function onSourceContextMenuClick(evt) {
+  const {
+    symInfo,
+    nestingSymInfo,
+    inAncestor,
+    fileInfo,
+    lineNumber,
+    symbolNames,
+    visibleTokenText
+  } = semanticInfoFromTarget(evt.target, "#content");
+
+  if (!symInfo) {
+    return;
+  }
+
+  if (inAncestor) {
+    evt.stopPropagation();
+    evt.preventDefault();
+
+    gGrokCtx.sessionManager.popupManager.showPopup(
+      gContentTrack.selectedThing,
+      "fancyContextMenu",
+      {
+        symInfo,
+        fromSymInfo: nestingSymInfo,
+        fileInfo,
+        lineNumber,
+        visibleTokenText,
+        highlightClickedThing: () => {
+          gHighlighter.highlightSymbolsWithToken(
+            "sticky-highlight",
+            symbolNames,
+            visibleTokenText,
+            "toggle"
+          );
+        }
+      },
+      evt
+    );
   }
 }
 
@@ -371,6 +434,7 @@ function bindSourceClickHandling(doc) {
 
   rootClickElem.addEventListener('mousemove', onSourceMouseMove);
   rootClickElem.addEventListener('click', onSourceClick);
+  rootClickElem.addEventListener('contextmenu', onSourceContextMenuClick);
 
   //window.addEventListener('mousedown', onMouseDown);
 }
@@ -722,14 +786,14 @@ function replaceUIWithOverwhelmingComplexity() {
     // The script tag and everything inside it will fall away when the content
     // elem is removed for this case.  We don't bother saving off the content
     // since all it contained of use was this global.
-    const rawResults = window.SEARCH_RESULTS;
+    const rawSearchResults = window.SEARCH_RESULTS;
     thing = contentTrack.addThing(null, null, {
       type: 'searchResults',
       persisted: {
         queryParams,
       },
       ingestArgs: {
-        rawResults
+        rawSearchResults
       },
     });
   }

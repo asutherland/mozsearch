@@ -9,7 +9,7 @@ import './path_hit_list.css';
  */
 export default class PathHitList extends React.Component {
   render() {
-    const { group, pathHits } = this.props;
+    const { grokCtx, group, pathHits } = this.props;
     // HEURISTIC: Only expand by default if there are less than 10.  More than
     // 10 means collapse by default.
     const expandByDefault = pathHits.length < 10;
@@ -19,6 +19,7 @@ export default class PathHitList extends React.Component {
         // between the hits in different groups, like their accordions.
         key={ `${group}:${i}` }
         pathHit={ pathHit }
+        grokCtx={ grokCtx }
         expandByDefault={ expandByDefault }
       />
     );

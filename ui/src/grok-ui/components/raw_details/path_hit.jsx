@@ -17,10 +17,14 @@ import './path_hit.css';
  */
 export default class PathHit extends React.PureComponent {
   render() {
+    const { grokCtx } = this.props;
     const { path, lines } = this.props.pathHit;
 
     const lineHits = lines.map((lineHit, i) =>
-      <LineHit key={ i } lineHit={ lineHit } />);
+      <LineHit
+        key={ i }
+        grokCtx={ grokCtx }
+        lineHit={ lineHit } />);
 
     const panels = [
       {
@@ -30,7 +34,11 @@ export default class PathHit extends React.PureComponent {
         title: {
           content: (
             <span>
-              <PathCrumbed className="pathHit__path" path={ path }/>
+              <PathCrumbed
+                className="pathHit__path"
+                grokCtx={ grokCtx }
+                path={ path }
+                />
               { ` (${lineHits.length})`}
             </span>
           ),

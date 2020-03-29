@@ -11,12 +11,12 @@ import RawResults from '../raw_details/raw_results.jsx';
  */
 export default class SearchResultsSheet extends DirtyingComponent {
   constructor(props) {
-    super(props, 'searchResults');
+    super(props, () => (this.props.model && this.props.model.filteredResults));
   }
 
   render() {
-    const { sessionThing, grokCtx } = this.props;
-    const rawResults = this.props.searchResults.rawResultsList[0];
+    const { sessionThing, grokCtx, model } = this.props;
+    const rawResults = model.filteredResults.rawResultsList[0];
     return (
       <RawResults
         sessionThing={ sessionThing }
@@ -64,10 +64,15 @@ export let SearchResultsBinding = {
   },
 
   makeWidgetForModel(sessionThing, model) {
+    if (!model || !model.filteredResults) {
+      return (<div></div>);
+    }
+
     return (
       <SearchResultsSheet
         key={ sessionThing.id }
         sessionThing={ sessionThing }
+        grokCtx={ sessionThing.grokCtx }
         model={ model }
         />
     );
