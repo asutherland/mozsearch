@@ -2,6 +2,7 @@ import React from 'react';
 
 import HitDict from './hit_dict.jsx';
 import SymbolHit from './symbol_hit.jsx';
+import PathCrumbed from './path_crumbed.jsx';
 
 import './raw_results.css';
 
@@ -26,26 +27,49 @@ export default class RawResults extends React.PureComponent {
       rawResults[key] = val;
     }
 
-    const contentFactory = (typedResults) => {
-      // XXX for now, just pierce "semantic" directly, which means we ignore
-      // "files" and "fulltext" results.
-      const symbolHits = typedResults; //typedResults.semantic || {};
-      const renderedSymbolHits = [];
-      for (const [rawSym, rawSymInfo ] of Object.entries(symbolHits)) {
-        renderedSymbolHits.push(
-          <SymbolHit
-            key={ rawSym }
-            grokCtx={ grokCtx }
-            sessionThing={ sessionThing }
-            rawSymInfo={ rawSymInfo }
-            />
+    const contentFactory = (typedResults, key) => {
+      if (key === 'semantic') {
+        const symbolHits = typedResults;
+        const renderedSymbolHits = [];
+        for (const [rawSym, rawSymInfo] of Object.entries(symbolHits)) {
+          renderedSymbolHits.push(
+            <SymbolHit
+              key={ rawSym }
+              grokCtx={ grokCtx }
+              sessionThing={ sessionThing }
+              rawSymInfo={ rawSymInfo }
+              />
+          );
+        }
+        return (
+          <div>
+            { renderedSymbolHits }
+          </div>
+        );
+      } else if (key === 'files') {
+        const fileHits = [];
+        for (const info of typedResults) {
+          fileHits.push(
+            <div>
+              <PathCrumbed
+                key={ info.path }
+                grokCtx={ grokCtx }
+                path={ info.path }
+                />
+            </div>
+          );
+        }
+        return (
+          <div>
+            { fileHits }
+          </div>
+        )
+      } else {
+        return (
+          <div>
+          </div>
         );
       }
-      return (
-        <div>
-          { renderedSymbolHits }
-        </div>
-      );
     };
 
     return (
