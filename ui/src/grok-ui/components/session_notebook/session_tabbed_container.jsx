@@ -112,6 +112,7 @@ export class SessionTabbedToolbar extends DirtyingComponent {
           trigger={
             <Dropdown
               trigger={<Button style={{ 'margin-right': 0 }} icon='plus' />}
+              floating
               icon={ null }
               >
               <Dropdown.Menu>
@@ -146,12 +147,13 @@ export class SessionTabbedToolbar extends DirtyingComponent {
                 trigger={<Button style={{ 'margin-right': 0 }} icon='close' />}
                 direction='right'
                 disabled={ !canClose }
+                floating
                 icon={ null }
                 >
                 <Dropdown.Menu>
                   <Dropdown.Item
                     key='close'
-                    text='Yes, Close The Tab'
+                    text='Close Tab'
                     onClick={ closeCurrentThing }
                     />
                 </Dropdown.Menu>
@@ -179,8 +181,10 @@ export class SessionTabbedToolbar extends DirtyingComponent {
           { tabButtons }
         </Comment.Group>
         &nbsp;
-        { maybeSpawnButton }
-        { closeButton }
+        <Button.Group basic>
+          { maybeSpawnButton }
+          { closeButton }
+        </Button.Group>
       </div>
     );
   }

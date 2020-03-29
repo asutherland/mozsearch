@@ -6,8 +6,16 @@
 .ui.comments .sessionTabbedToolbar__item.comment {
   cursor: pointer;
   border-bottom: 1px solid gray;
-  padding: 1em !important;
+  padding: 0.4em 0.6em 0.4em 0.4em !important;
   margin: 0 !important;
+}
+
+.ui.comments .sessionTabbedToolbar__item.comment .author {
+  overflow-wrap: break-word;
+}
+
+.ui.comments .sessionTabbedToolbar__item.comment .text {
+  margin-bottom: 0;
 }
 
 /* The comment markup being abused for rich item purposes assumes an avatar
@@ -26,6 +34,8 @@
 .sessionTabbedToolbar__item__active {
   background-color: lightblue !important;
 }
+
+
 
 .sessionTabbedContainer {
   width: 100%;

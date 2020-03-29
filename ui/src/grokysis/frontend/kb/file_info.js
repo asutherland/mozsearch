@@ -15,9 +15,9 @@ export default class FileInfo extends EE {
     const pathBits = path.split('/');
     // In cases where the path ends with a trailing slash, then the last path
     // segment will be empty.
-    // XXX by default searchfox will favor not having a trailing slash, so we
-    // need to perform a lookup here to correctly identify if something's a
-    // directory, and we'll also need lookupSourceFile to normalize.
+    // XXX by default searchfox will favor not having a trailing slash, so we'll
+    // need lookupSourceFile to normalize based on knowing what's a directory
+    // so that we always use the trailing slash format.
     this.isDir = pathBits[pathBits.length - 1].length === 0;
     const sliceIndex = (this.isDir && pathBits.length > 1 ) ? -2 : -1;
     this.dirPath = pathBits.slice(0, sliceIndex).join('/');

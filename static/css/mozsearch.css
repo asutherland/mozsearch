@@ -252,6 +252,8 @@ body.toolbox-inserted {
   flex-shrink: 0;
   padding: 2px;
   border-right: 1px solid black;
+  /* explicitly chosen so SharedWorkerManager.cpp fits */
+  max-width: 16em;
 }
 
 #toplevel {
