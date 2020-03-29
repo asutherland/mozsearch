@@ -218,6 +218,14 @@ export let BlocklyDiagramEditorBinding = {
     return 'Blockly ' + model.diagram.name;
   },
 
+  makeRichLabelInfoForModel(sessionThing, model) {
+    return {
+      primary: model.diagram.name,
+      secondary: "",
+      actions: [],
+    };
+  },
+
   makeWidgetForModel(sessionThing, model) {
     return (
       <BlocklyDiagramEditorSheet

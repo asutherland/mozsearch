@@ -111,6 +111,21 @@ export let StaticSourceViewBinding = {
     return `Source File: ${ model.path }`;
   },
 
+  makeRichLabelInfoForModel(sessionThing, model) {
+    if (!model) {
+      return {
+        primary: "Unhappy Source View",
+        secondary: "",
+        actions: [],
+      };
+    }
+    return {
+      primary: model.fileInfo.name,
+      secondary: model.fileInfo.dirPath,
+      actions: []
+    };
+  },
+
   makeWidgetForModel(sessionThing, model) {
     if (!model) {
       return <div></div>;

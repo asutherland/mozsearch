@@ -237,6 +237,14 @@ export let SymbolContextSheetBinding = {
     return 'Symbol Context: No Symbol';
   },
 
+  makeRichLabelInfoForModel(sessionThing, model) {
+    return {
+      primary: "Symbol Context",
+      secondary: "",
+      actions: [],
+    };
+  },
+
   makeWidgetForModel(sessionThing, model) {
     return (
       <SymbolContextSheet

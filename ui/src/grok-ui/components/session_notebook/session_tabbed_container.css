@@ -3,6 +3,30 @@
   flex-direction: column;
 }
 
+.ui.comments .sessionTabbedToolbar__item.comment {
+  cursor: pointer;
+  border-bottom: 1px solid gray;
+  padding: 1em !important;
+  margin: 0 !important;
+}
+
+/* The comment markup being abused for rich item purposes assumes an avatar
+ * that's strictly an image but we want to use an icon, so we hackily
+ * approximate the CSS.
+ */
+.sessionTabbedToolbar__item__icon.icon {
+  float: left;
+  display: block;
+  margin: 0.2em;
+}
+.sessionTabbedToolbar__item__icon ~ .content {
+  margin-left: 1.4em;
+}
+
+.sessionTabbedToolbar__item__active {
+  background-color: lightblue !important;
+}
+
 .sessionTabbedContainer {
   width: 100%;
   padding: 0.6rem;

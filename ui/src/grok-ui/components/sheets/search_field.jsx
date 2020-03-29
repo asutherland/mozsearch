@@ -69,6 +69,14 @@ export let SearchFieldBinding = {
     return 'Search';
   },
 
+  makeRichLabelInfoForModel(/* sessionThing, model */) {
+    return {
+      primary: "Search",
+      secondary: "",
+      actions: [],
+    };
+  },
+
   makeWidgetForModel(sessionThing/*, model */) {
     return (
       <SearchFieldSheet

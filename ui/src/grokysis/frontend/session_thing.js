@@ -35,6 +35,10 @@ export default class SessionThing {
     return this.binding.makeLabelForModel(this, this.model);
   }
 
+  makeRichLabelInfo() {
+    return this.binding.makeRichLabelInfoForModel(this, this.model);
+  }
+
   makeWidget() {
     return this.binding.makeWidgetForModel(this, this.model);
   }

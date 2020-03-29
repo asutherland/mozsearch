@@ -63,6 +63,14 @@ export let SearchResultsBinding = {
     return `Results: ${ model.searchText }`;
   },
 
+  makeRichLabelInfoForModel(sessionThing, model) {
+    return {
+      primary: `"${ model.searchText }"`,
+      secondary: "",
+      actions: [],
+    };
+  },
+
   makeWidgetForModel(sessionThing, model) {
     if (!model || !model.filteredResults) {
       return (<div></div>);

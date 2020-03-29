@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { Button, Dropdown, Popup } from 'semantic-ui-react';
+import { Button, Comment, Dropdown, Icon, Popup } from 'semantic-ui-react';
 
 import DirtyingComponent from '../dirtying_component.js';
 
@@ -13,6 +13,16 @@ import './session_tabbed_container.css';
  * messages directly and therefore needed to be instantiated at all times, but
  * that model-view coupling (for simplicity) is no longer justifiable when
  * things aren't always visible and may be very expensive (graph updates!).
+ *
+ * ## Presentation Notes
+ *
+ * This evolved from trying to use actual tabs for the context area / top bar
+ * into using a vertical toolbar/buttonbar on the left.  This is now involving
+ * into a somewhat wider vertical toolbar that is starting to resemble a tabbed
+ * UI again but with much more complex tabs.
+ *
+ * Currently, this is accomplished via abusing the Semantic UI "Comment"
+ * presentation.
  *
  * Expected props:
  * - grokCtx
@@ -34,25 +44,35 @@ export class SessionTabbedToolbar extends DirtyingComponent {
 
     const makeTabButtons = (track, activeThing) => {
       return track.things.map((thing) => {
+        const labelInfo = thing.makeRichLabelInfo();
+
         const selectThisThing = () => {
           track.selectThing(thing, 'click');
         };
+
+        let maybeSecondary;
+        if (labelInfo.secondary) {
+          maybeSecondary = <Comment.Text>{ labelInfo.secondary }</Comment.Text>
+        }
+
+        let classNames = 'sessionTabbedToolbar__item';
+        if (thing === activeThing) {
+          classNames += ' sessionTabbedToolbar__item__active';
+        }
+
         return (
-          <Popup
-          key={ thing.id }
-          content={ thing.makeLabel() }
-          mouseEnterDelay={250}
-          position='right center'
-          on='hover'
-          size='large'
-          trigger={
-            <Button
-            icon={ thing.binding.icon }
-            active={ thing === activeThing }
+          <Comment
+            key={ thing.id }
+            className={ classNames }
+            size="small"
             onClick={ selectThisThing }
-            />
-          }
-          />
+            >
+            <Icon className="sessionTabbedToolbar__item__icon" size="small" name={ thing.binding.icon } />
+            <Comment.Content>
+              <Comment.Author>{ labelInfo.primary }</Comment.Author>
+              { maybeSecondary }
+            </Comment.Content>
+          </Comment>
         );
       });
     };
@@ -155,9 +175,9 @@ export class SessionTabbedToolbar extends DirtyingComponent {
     //
     return (
       <div className="sessionTabbedToolbar">
-        <Button.Group vertical>
+        <Comment.Group>
           { tabButtons }
-        </Button.Group>
+        </Comment.Group>
         &nbsp;
         { maybeSpawnButton }
         { closeButton }
