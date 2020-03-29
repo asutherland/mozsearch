@@ -58,7 +58,7 @@ function makeGrokContext() {
             type: 'searchField',
             persisted: {
               initialValue: ''
-            }
+            },
           },
           {
             type: 'diagram',
@@ -85,7 +85,13 @@ function makeGrokContext() {
                 searchText
               },
             };
-          }
+          },
+          spawn: [
+            'blocklyDiagram',
+            'diagram',
+            'searchField',
+            'symbolContext'
+          ],
         },
         content: {
           // The content track is substantially characterized by the URL so
@@ -94,6 +100,10 @@ function makeGrokContext() {
           persist: false,
           // The HistoryHelper will clobber its own listener into place here.
           onSelectionChange: null,
+          spawn: [
+            'blocklyDiagram',
+            'diagram'
+          ]
         }
       },
 
@@ -751,7 +761,7 @@ function replaceUIWithOverwhelmingComplexity() {
       <SessionTabbedToolbar
         grokCtx={ gGrokCtx }
         trackName="content"
-        spawn={false}
+        spawn={true}
         closeLabel="Close Current Content Tab"
         />
     </div>

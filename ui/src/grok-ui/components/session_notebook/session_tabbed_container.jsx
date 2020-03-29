@@ -62,7 +62,7 @@ export class SessionTabbedToolbar extends DirtyingComponent {
 
     let maybeSpawnButton;
     if (this.props.spawn) {
-      const addDropdownItems = this.sessionManager.userSpawnables.map(
+      const addDropdownItems = this.track.userSpawnables.map(
         ({ type, binding }) => {
           const spawnThisTab = () => {
             this.track.addThing(

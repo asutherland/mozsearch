@@ -33,6 +33,14 @@ export default class SessionTrack extends EE {
      */
     this.temporarilySelectedThing = null;
 
+    this.userSpawnables = null;
+    if (this.trackSettings.spawn) {
+      this.userSpawnables = [];
+      for (const type of this.trackSettings.spawn) {
+        this.userSpawnables.push({ type, binding: manager.bindings[type] });
+      }
+    }
+
     this.serial = 0;
   }
 
