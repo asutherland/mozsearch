@@ -148,6 +148,19 @@ class GrokAnalysisFrontend {
     return filtered;
   }
 
+  ingestExistingSearchSymbolResults({ rawSearchResults, analysisMode }) {
+    const filtered = this.ingestExistingSearchResults({ rawSearchResults });
+    const raw = filtered.rawResultsList[0].raw;
+    const resultSet = this.kb.__syncProcessRawSearchResults(raw, analysisMode);
+    return resultSet;
+  }
+
+  ingestExistingSearchSingleSymbolResults({ rawSearchResults, analysisMode }) {
+    const resultSet = this.ingestExistingSearchSymbolResults({
+      rawSearchResults, analysisMode });
+    return resultSet.values().next().value;
+  }
+
   async performAsyncSearch(searchStr) {
     const filtered = new FilteredResults({ rawResultsList: [] });
     await this._performAsyncSearch(searchStr, filtered);

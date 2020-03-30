@@ -603,6 +603,19 @@ class Handler(six.moves.SimpleHTTPServer.SimpleHTTPRequestHandler):
     def log_request(self, *args):
         pass
 
+    def _wrap_sorch_results(self, tree_name, query):
+        '''
+        Commonalities around sorch results and URI wrappers like "symbol" that
+        are just a specialized sorch.
+        '''
+        j = get_json_sorch_results(tree_name, query)
+        if 'json' in self.headers.getheader('Accept', ''):
+                self.generate(j, 'application/json')
+        else:
+            j = j.replace("</", "<\\/").replace("<script", "<\\script").replace("<!", "<\\!")
+            template = os.path.join(index_path(tree_name), 'templates/sorch.html')
+            self.generateWithTemplate({'{{BODY}}': j, '{{TITLE}}': 'Search'}, template)
+
     def process_request(self):
         url = six.moves.urllib.parse.urlparse(self.path)
         path_elts = url.path.split('/')
@@ -623,13 +636,15 @@ class Handler(six.moves.SimpleHTTPServer.SimpleHTTPRequestHandler):
         elif len(path_elts) >= 2 and path_elts[1] == 'sorch':
             tree_name = path_elts[0]
             query = urlparse.parse_qs(url.query)
-            j = get_json_sorch_results(tree_name, query)
-            if 'json' in self.headers.getheader('Accept', ''):
-                self.generate(j, 'application/json')
-            else:
-                j = j.replace("</", "<\\/").replace("<script", "<\\script").replace("<!", "<\\!")
-                template = os.path.join(index_path(tree_name), 'templates/sorch.html')
-                self.generateWithTemplate({'{{BODY}}': j, '{{TITLE}}': 'Search'}, template)
+            self._wrap_sorch_results(tree_name, query)
+        # "symbol" is a variant on "define", but whereas "define" creates a
+        # redirect, "symbol" is equivalent to source with "q=symbol:ORIGINAL_Q"
+        elif len(path_elts) >= 2 and path_elts[1] == 'symbol':
+            tree_name = path_elts[0]
+            orig_query = urlparse.parse_qs(url.query)
+            symbol = orig_query['q'][0]
+            new_query = { 'q': [ 'symbol:' + symbol ]}
+            self._wrap_sorch_results(tree_name, new_query)
         elif len(path_elts) >= 2 and path_elts[1] == 'define':
             tree_name = path_elts[0]
             query = six.moves.urllib.parse.parse_qs(url.query)

@@ -20,7 +20,7 @@ import SessionPopupContainer from
 import { SessionTabbedToolbar, SessionTabbedContainer } from
   './components/session_notebook/session_tabbed_container.jsx';
 
-import KBSymbolViewSheet from './components/sheets/kb_symbol_view.jsx';
+import { KBSymbolViewBinding } from './components/sheets/kb_symbol_view.jsx';
 import { DiagramSheetBinding } from './components/sheets/diagram.jsx';
 import { BlocklyDiagramEditorBinding } from './components/sheets/blockly_diagram_editor.jsx';
 import { SearchFieldBinding } from './components/sheets/search_field.jsx';
@@ -28,7 +28,6 @@ import { SearchResultsBinding } from './components/sheets/search_results.jsx';
 import { SymbolContextSheetBinding } from './components/sheets/symbol_context.jsx';
 import { StaticSourceViewBinding } from './components/sheets/static_source_view.jsx';
 
-import KBSymbolInfoPopup from './components/popups/kb_symbol_info.jsx';
 import ClassicSearchfoxMenu from './components/popups/classic_searchfox_menu.jsx';
 import FancyContextMenu from './components/popups/fancy_context_menu.jsx';
 
@@ -154,6 +153,7 @@ function makeGrokContext() {
         searchResults: SearchResultsBinding,
         sourceView: StaticSourceViewBinding,
         symbolContext: SymbolContextSheetBinding,
+        symbolView: KBSymbolViewBinding,
       }
     }
   });
@@ -531,6 +531,10 @@ class HistoryHelper {
     return this.buildSourceURL(path, line);
   }
 
+  buildSymbolViewURLForSymbol(symInfo) {
+    return `/${this.treeName}/symbol?q=${encodeURIComponent(symInfo.rawName)}`;
+  }
+
   buildSearchURLForString(str) {
     return `/${this.treeName}/sorch?q=${encodeURIComponent(str)}`;
   }
@@ -589,7 +593,7 @@ class HistoryHelper {
    * Called in response to both the user's use of the back/forward buttons as
    * well as if our `navigateTo` helper is used.
    */
-  onPopState(/* source */) {
+  onPopState(source) {
     const { pathInfo, queryParams, hash, href } =
       this.getCurrentLocationState();
 
@@ -616,6 +620,17 @@ class HistoryHelper {
         break;
       }
 
+      // Operates similarly to the 'define' search alias thing.
+      case 'symbol': {
+        ({ thing, existed } = this.contentTrack.ensureThing({
+          type: 'symbolView',
+          persisted: {
+            rawSymbol: queryParams.q
+          },
+        }));
+        break;
+      }
+
       default: {
         break;
       }
@@ -625,7 +640,7 @@ class HistoryHelper {
     this._updateDocumentTitle(thing);
 
     const alreadyVisible = this.contentTrack.selectedThing === thing;
-    console.log('onPopState handler:', existed, alreadyVisible, hash);
+    console.log('onPopState handler:', source, existed, alreadyVisible, hash);
     this.contentTrack.selectThing(thing, 'popstate');
     // If the source view already existed and was already displayed, then it's
     // likely the DOM has already been attached.  If the DOM is already attached
@@ -835,6 +850,17 @@ function replaceUIWithOverwhelmingComplexity() {
       type: 'searchResults',
       persisted: {
         queryParams,
+      },
+      ingestArgs: {
+        rawSearchResults
+      },
+    });
+  } else if (pathInfo.route === 'symbol') {
+    const rawSearchResults = window.SEARCH_RESULTS;
+    thing = contentTrack.addThing(null, null, {
+      type: 'symbolView',
+      persisted: {
+        rawSymbol: queryParams.q,
       },
       ingestArgs: {
         rawSearchResults

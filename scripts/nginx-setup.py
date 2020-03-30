@@ -210,6 +210,8 @@ for repo in config['trees']:
     location('/%(repo)s/search', ['proxy_pass http://localhost:8000;'])
     location('/%(repo)s/sorch', ['proxy_pass http://localhost:8000;'])
     location('/%(repo)s/define', ['proxy_pass http://localhost:8000;'])
+    location('/%(repo)s/symbol', ['proxy_pass http://localhost:8000;'])
+
 
     # Handled by Rust web-server.
     location('/%(repo)s/diff', ['proxy_pass http://localhost:8001;'])

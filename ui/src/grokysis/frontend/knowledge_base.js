@@ -145,8 +145,7 @@ export default class KnowledgeBase {
   }
 
   /**
-   * Given raw search results, process each "semantic" entry, returning the
-   * existing
+   * Given raw search results, process each "semantic" entry.
    */
   async __processRawSearchResults(raw, traversalMode) {
     const resultSet = new Set();
@@ -168,6 +167,39 @@ export default class KnowledgeBase {
       this.symbolAnalyzer.injectCrossrefData(symInfo, rawSymInfo);
       if (traversalMode) {
         await this.symbolAnalyzer.ensureSymbolAnalysis(symInfo, traversalMode);
+      }
+
+      resultSet.add(symInfo);
+    }
+
+    return resultSet;
+  }
+
+  /**
+   * __processRawSearchResults but results are returned synchronously with any
+   * async traversals initiated without waiting for the results.  This probably
+   * wants to be unified and cleaned up...
+   */
+  __syncProcessRawSearchResults(raw, traversalMode) {
+    const resultSet = new Set();
+    for (const [rawName, rawSymInfo] of Object.entries(raw.semantic || {})) {
+      let symInfo = this.symbolsByRawName.get(rawName);
+      if (symInfo) {
+        resultSet.add(symInfo);
+
+        this.symbolAnalyzer.injectCrossrefData(symInfo, rawSymInfo);
+        if (traversalMode) {
+          this.symbolAnalyzer.ensureSymbolAnalysis(symInfo, traversalMode);
+        }
+        continue;
+      }
+
+      symInfo = new SymbolInfo({ rawName });
+      this.symbolsByRawName.set(rawName, symInfo);
+
+      this.symbolAnalyzer.injectCrossrefData(symInfo, rawSymInfo);
+      if (traversalMode) {
+        this.symbolAnalyzer.ensureSymbolAnalysis(symInfo, traversalMode);
       }
 
       resultSet.add(symInfo);
@@ -250,7 +282,6 @@ export default class KnowledgeBase {
    *   - 'subclasses': The initiating symbol wants to know about its subclasses.
    *     All analysis traversals should be strictly down the subclass chain and
    *     should be prepared for overload.
-   *
    */
   lookupRawSymbol(rawName, opts={}) {
     const { prettyName } = opts;
