@@ -324,6 +324,11 @@ const gHighlighter = new SymbolHighlighter();
  * Searchfox originally used elementFromPoint, but it's not clear why.
  */
 function onSourceMouseMove(evt) {
+  // Ignore mouse moves when we're displaying a popup.
+  if (gGrokCtx.sessionManager.popupManager.popupInfo) {
+    return;
+  }
+
   // We only want the "symbols" for hover highlighting, but we do desire the
   // side-effect of the `symInfo` lookup occurring.
   const { symbolNames, symInfo, visibleTokenText, inAncestor } =
@@ -361,38 +366,39 @@ function onSourceClick(evt) {
 
   evt.stopPropagation();
 
-  // Somewhat opposite of the hover (onSourceMouseMove) case, we do want to emit
-  // the click event here for context purposes, but we don't want to trigger
-  // the menu / popup display.
-  if (gContentTrack && gContentTrack.selectedThing) {
+  // If the click was inside the content track (inAncestor), then broadcast a
+  // click so the symbol context can latch the clicked thing.
+  //
+  // We don't emit this message when we weren't in the content track because we
+  // presume we're in the topbar in the symbol context display or a diagram, and
+  // in that case we don't want to mess with what the user's cursor is over.
+
+  if (inAncestor) {
     gContentTrack.selectedThing.broadcastMessage(
       'sourceView', 'clicked', { symInfo });
   }
 
-  if (inAncestor) {
-    gGrokCtx.sessionManager.popupManager.showPopup(
-      gContentTrack.selectedThing,
-      "classicSearchfoxMenu",
-      {
-        symInfo,
-        fromSymInfo: nestingSymInfo,
-        fileInfo,
-        lineNumber,
-        visibleTokenText,
-        highlightClickedThing: () => {
-          gHighlighter.highlightSymbolsWithToken(
-            "sticky-highlight", symbolNames, visibleTokenText, 'toggle');
-        }
-      },
-      evt);
-  }
+  gGrokCtx.sessionManager.popupManager.showPopup(
+    gContentTrack.selectedThing,
+    "classicSearchfoxMenu",
+    {
+      symInfo,
+      fromSymInfo: nestingSymInfo,
+      fileInfo,
+      lineNumber,
+      visibleTokenText,
+      highlightClickedThing: () => {
+        gHighlighter.highlightSymbolsWithToken(
+          "sticky-highlight", symbolNames, visibleTokenText, 'toggle');
+      }
+    },
+    evt);
 }
 
 function onSourceContextMenuClick(evt) {
   const {
     symInfo,
     nestingSymInfo,
-    inAncestor,
     fileInfo,
     lineNumber,
     symbolNames,
@@ -403,31 +409,29 @@ function onSourceContextMenuClick(evt) {
     return;
   }
 
-  if (inAncestor) {
-    evt.stopPropagation();
-    evt.preventDefault();
+  evt.stopPropagation();
+  evt.preventDefault();
 
-    gGrokCtx.sessionManager.popupManager.showPopup(
-      gContentTrack.selectedThing,
-      "fancyContextMenu",
-      {
-        symInfo,
-        fromSymInfo: nestingSymInfo,
-        fileInfo,
-        lineNumber,
-        visibleTokenText,
-        highlightClickedThing: () => {
-          gHighlighter.highlightSymbolsWithToken(
-            "sticky-highlight",
-            symbolNames,
-            visibleTokenText,
-            "toggle"
-          );
-        }
-      },
-      evt
-    );
-  }
+  gGrokCtx.sessionManager.popupManager.showPopup(
+    gContentTrack.selectedThing,
+    "fancyContextMenu",
+    {
+      symInfo,
+      fromSymInfo: nestingSymInfo,
+      fileInfo,
+      lineNumber,
+      visibleTokenText,
+      highlightClickedThing: () => {
+        gHighlighter.highlightSymbolsWithToken(
+          "sticky-highlight",
+          symbolNames,
+          visibleTokenText,
+          "toggle"
+        );
+      }
+    },
+    evt
+  );
 }
 
 /**
