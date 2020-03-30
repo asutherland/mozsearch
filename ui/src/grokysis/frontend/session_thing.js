@@ -31,6 +31,14 @@ export default class SessionThing {
     this.model = this.binding.makeModel(this, persisted, ingestArgs);
   }
 
+  makeDocumentTitle() {
+    if (this.binding.makeDocumentTitleForModel) {
+      return this.binding.makeDocumentTitleForModel(this, this.model);
+    }
+
+    return '';
+  }
+
   makeLabel() {
     return this.binding.makeLabelForModel(this, this.model);
   }

@@ -476,6 +476,8 @@ class HistoryHelper {
     this.treeName = treeName;
     this.contentTrack = contentTrack;
 
+    this._scrollingElem = document.getElementById('scrolling');
+
     this._bound_onPopState = this.onPopState.bind(this, 'window');
     window.addEventListener('popstate', this._bound_onPopState);
 
@@ -540,6 +542,16 @@ class HistoryHelper {
     return `/${this.treeName}/sorch?q=symbol:${encodeURIComponent(symbols)}`;
   }
 
+  stashState() {
+    if (this.contentTrack.selectedThing) {
+      const { spec } = this.getCurrentLocationState();
+      this.contentTrack.selectedThing.sessionMeta.url = spec;
+
+      this.contentTrack.selectedThing.sessionMeta.scrollTop =
+        this._scrollingElem.scrollTop;
+    }
+  }
+
   /**
    * Attempt to single-page navigate to the given link, returning true if the
    * URL was eligible and false if not.  (It's possible for us to encounter
@@ -566,10 +578,7 @@ class HistoryHelper {
    * to if the user ever switches back to this sessionThing via tabbed UI.
    */
   onHashChange() {
-    if (this.contentTrack.selectedThing) {
-      const { spec } = this.getCurrentLocationState();
-      this.contentTrack.selectedThing.sessionMeta.url = spec;
-    }
+    this.stashState();
   }
 
   /**
@@ -609,6 +618,7 @@ class HistoryHelper {
     }
 
     thing.sessionMeta.url = href;
+    this._updateDocumentTitle(thing);
 
     const alreadyVisible = this.contentTrack.selectedThing === thing;
     console.log('onPopState handler:', existed, alreadyVisible, hash);
@@ -629,6 +639,15 @@ class HistoryHelper {
     return true;
   }
 
+  _updateDocumentTitle(thing) {
+    let useTitle = 'mozsearch';
+    let thingTitle = thing.makeDocumentTitle();
+    if (thingTitle) {
+      useTitle = thingTitle + ' - ' + useTitle;
+    }
+    document.title = useTitle;
+  }
+
   /**
    * Notification from the session tabbed UI that the user is switching the
    * selected sessionThing and therefore that we should update the URL (and
@@ -639,8 +658,16 @@ class HistoryHelper {
    * @param {'popstate'|'click'} source
    */
   onTrackSelectionChange(oldThing, newThing, source) {
+    // If we're about to switch because of a click, be sure to save off the hash
+    // and (more importantly) the scrollTop.
+    if (oldThing && source === 'click') {
+      this.stashState();
+    }
     if (newThing && newThing.sessionMeta.url && source === 'click') {
       history.pushState({}, '', newThing.sessionMeta.url);
+    }
+    if (newThing && source === 'click') {
+      this._updateDocumentTitle(newThing);
     }
   }
 
@@ -657,6 +684,9 @@ class HistoryHelper {
       // This is from dxr.js and handles making an element with the numeric id
       // in question which lets the browser do its own scrolling thing.
       this.createSyntheticAnchor(hash.slice(1));
+    }
+    if (sessionThing.sessionMeta.scrollTop !== undefined) {
+      this._scrollingElem.scrollTop = sessionThing.sessionMeta.scrollTop;
     }
   }
 

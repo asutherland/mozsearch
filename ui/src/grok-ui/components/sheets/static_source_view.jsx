@@ -104,6 +104,10 @@ export let StaticSourceViewBinding = {
     return new StaticSourceViewModel(sessionThing, persisted);
   },
 
+  makeDocumentTitleForModel(sessionThing, model) {
+    return model.fileInfo.name;
+  },
+
   makeLabelForModel(sessionThing, model) {
     if (!model) {
       return "Unhappy Source View";
