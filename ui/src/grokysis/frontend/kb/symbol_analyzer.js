@@ -344,7 +344,7 @@ export default class SymbolAnalyzer {
       return;
     }
 
-    symInfo.__completedTraversalBits &= ~this.selfTraversalInfo.bit;
+    symInfo.__activeTraversalBits &= ~this.selfTraversalInfo.bit;
     symInfo.__completedTraversalBits |= this.selfTraversalInfo.bit;
     this.kb._processSymbolRawSymInfo(symInfo, crossrefData);
   }

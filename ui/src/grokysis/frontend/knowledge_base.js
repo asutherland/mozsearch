@@ -466,6 +466,10 @@ export default class KnowledgeBase {
         hits: {},
         meta: variantMeta
       };
+      // We do need to propagate a limited amount of data into the meta; kind
+      // and pretty get left out.
+      variantMeta.pretty = symInfo.rawMeta.pretty;
+      variantMeta.kind = symInfo.rawMeta.kind;
       this.symbolAnalyzer.injectCrossrefData(varSymInfo, variantData);
       variants.push(varSymInfo);
     }
