@@ -700,9 +700,7 @@ class HistoryHelper {
   onContentHTMLAttached(sessionThing, thingPath/*, rootNode */) {
     const { pathInfo, hash } = this.getCurrentLocationState();
     if (pathInfo.rest === thingPath && hash) {
-      // This is from dxr.js and handles making an element with the numeric id
-      // in question which lets the browser do its own scrolling thing.
-      this.createSyntheticAnchor(hash.slice(1));
+      this.createSyntheticAnchor(hash.slice(1), true);
     }
     if (sessionThing.sessionMeta.scrollTop !== undefined) {
       this._scrollingElem.scrollTop = sessionThing.sessionMeta.scrollTop;
@@ -726,18 +724,21 @@ class HistoryHelper {
    * to.  (That's what the "goto" class accomplishes.)  Please see mosearch.css
    * for some additional details and context here.
    */
-  createSyntheticAnchor(id) {
-    if (document.getElementById(id)) {
-      return;
+  createSyntheticAnchor(id, scrollToIt) {
+    let gotoElt = document.getElementById(id);
+    if (!gotoElt) {
+      var firstLineno = id.split(/[,-]/)[0];
+      var elt = document.getElementById("l" + firstLineno);
+
+      gotoElt = document.createElement("div");
+      gotoElt.id = id;
+      gotoElt.className = "goto";
+      elt.appendChild(gotoElt);
     }
 
-    var firstLineno = id.split(/[,-]/)[0];
-    var elt = document.getElementById("l" + firstLineno);
-
-    var gotoElt = document.createElement("div");
-    gotoElt.id = id;
-    gotoElt.className = "goto";
-    elt.appendChild(gotoElt);
+    if (scrollToIt) {
+      gotoElt.scrollIntoView();
+    }
   }
 }
 
