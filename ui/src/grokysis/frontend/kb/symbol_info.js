@@ -209,6 +209,33 @@ export default class SymbolInfo extends EE {
     this.emit('dirty');
   }
 
+  /**
+   * Return a list of the symbol's ancestors from root down to the symbol itself
+   * (optionally), all as SymbolInfos directly (rather than wrapped meta).
+   * May change to suit only caller.
+   *
+   * Note that linearization is currently done arbitrarily here and should
+   * probably be more than me making stuff up.
+   */
+  getLinearizedAncestors(inclusive) {
+    const syms = [];
+    if (inclusive) {
+      syms.push(this);
+    }
+
+    function recurse(cur) {
+      const superSyms = (cur.supers || []).map(x => x.symInfo);
+      for (const sym of superSyms) {
+        syms.push(sym);
+        recurse(sym);
+      }
+    }
+    recurse(this);
+
+    syms.reverse();
+    return syms;
+  }
+
   ensureCallEdges() {
     if (this._callsLastFilteredSerial === this.serial) {
       return;
