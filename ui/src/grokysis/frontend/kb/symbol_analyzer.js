@@ -160,9 +160,6 @@ const SYMBOL_ANALYSIS_TRAVERSALS = [
     },
     traverseNext: ['SUBCLASSES'],
   },
-  // XXX: This should have a next traversal that causes the parent symbol to
-  // traverse all of its fields and methods.  Either RECORD or FIELDS and
-  // METHODS
   {
     name: 'PARENT',
     bit: 1 << (SPECIAL_BIT_COUNT + 2),
@@ -173,7 +170,7 @@ const SYMBOL_ANALYSIS_TRAVERSALS = [
       }
       return parentSet;
     },
-    traverseNext: [],
+    traverseNext: ['FIELDS', 'METHODS'],
   },
   {
     name: 'DIRECT_CALLS',
@@ -211,6 +208,42 @@ const SYMBOL_ANALYSIS_TRAVERSALS = [
     },
     traverseNext: ['DIRECTLY_CALLED_BY'],
   },
+  // Looks up all the fields with no follow-on traversal.
+  {
+    name: 'FIELDS',
+    bit: 1 << (SPECIAL_BIT_COUNT + 7),
+    traverse(symInfo) {
+      if (!symInfo.fields) {
+        return EMPTY_SET;
+      }
+      return new Set(symInfo.fields.map(x => x.symInfo));
+    },
+    traverseNext: [],
+  },
+  {
+    name: 'METHODS',
+    bit: 1 << (SPECIAL_BIT_COUNT + 8),
+    traverse(symInfo) {
+      if (!symInfo.methods) {
+        return EMPTY_SET;
+      }
+      return new Set(symInfo.methods.map(x => x.symInfo));
+    },
+    traverseNext: [],
+  },
+  // Note that neither FIELDS nor METHODS include further traversals.
+  {
+    name: 'VARIANTS',
+    bit: 1 << (SPECIAL_BIT_COUNT + 9),
+    traverse(symInfo) {
+      this.kb.__processVariants(symInfo);
+      if (symInfo.variants) {
+        return new Set(symInfo.variants);
+      }
+      return EMPTY_SET;
+    },
+    traverseNext: ['FIELDS', 'METHODS'],
+  },
 ];
 
 /**
@@ -220,7 +253,7 @@ const SYMBOL_ANALYSIS_TRAVERSALS = [
 const SYMBOL_ANALYSIS_MODES = [
   {
     name: 'context',
-    traversals: ['SELF', 'SUPERCLASSES', 'SUBCLASSES', 'PARENT'],
+    traversals: ['SELF', 'SUPERCLASSES', 'SUBCLASSES', 'PARENT', 'FIELDS', 'METHODS', 'VARIANTS'],
     traversFile: true,
     /// `traversalInfos` will be clobbered into place and reference the objects
     /// found in SYMBOL_ANALYSIS_TRAVERSALS
@@ -256,6 +289,8 @@ export default class SymbolAnalyzer {
       info.traverseNextInfos = info.traverseNext.map((name) => {
         return this.traversalsByName.get(name);
       });
+      // Make `this.kb` available to their traverse() methods.
+      info.kb = kb;
     }
     this.selfTraversalInfo = this.traversalsByName.get('SELF');
 

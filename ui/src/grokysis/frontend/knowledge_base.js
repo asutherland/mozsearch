@@ -19,6 +19,8 @@ const MAX_USE_PATHLINES_LIMIT = 32;
 /// forbidden?
 const EXCESSIVE_SUBCLASSES = 16;
 
+const ONLY_PLATFORM = ['Only Platform'];
+
 /**
  * Check if two (inclusive start offset, exclusive end offset) ranges intersect.
  */
@@ -434,13 +436,43 @@ export default class KnowledgeBase {
   }
 
   /**
+   * Derive new SymbolInfo instances with their `canonVariant` set to `symInfo`
+   * from the symInfo's `__crossrefData.variants` data, if present.  The new
+   * SymbolInfo instances are not put in any global lookup, they are only
+   * accessible via `symInfo.variants`.  There's somewhat of an invariant here
+   * that this is appropriate because the variants by definition have the same
+   * symbol name as the symbol they were merged with, so they don't need a
+   * (colliding) lookup entry.
+   */
+  __processVariants(symInfo) {
+    // Nothing to do if this is already a variant or if the symbol has no
+    // variants.
+    if (symInfo.canonVariant ||
+        !symInfo.__crossRefData ||
+        !symInfo.__crossRefData.variants ||
+        !symInfo.__crossRefData.variants.length) {
+      return;
+    }
+
+    const variants = symInfo.variants = [];
+    for (const variantData of symInfo.__crossRefData.variants) {
+      const varSymInfo = new SymbolInfo({
+        rawName: symInfo.varName,
+        prettyName: symInfo.fullName,
+      });
+      varSymInfo.canonVariant = symInfo;
+      this.symbolAnalyzer.injectCrossrefData(varSymInfo, variantData);
+      variants.push(varSymInfo);
+    }
+  }
+
+  /**
    * Given the raw semantic info returned from a sorch that matches a symbol,
    * process it into the given symbol.
    */
   _processSymbolRawSymInfo(symInfo, rawSymInfo) {
     symInfo.__crossrefData = rawSymInfo;
-
-    symInfo.updatePrettyNameFrom(rawSymInfo.pretty);
+    symInfo.platforms = rawSymInfo.platforms || ONLY_PLATFORM;
 
     // ## Consume "meta" data
     // XXX Currently, "use" links do not include an explicit "kind".  It may
@@ -457,6 +489,7 @@ export default class KnowledgeBase {
     let usesSemanticKind;
     if (rawSymInfo.meta) {
       const meta = rawSymInfo.meta;
+      symInfo.updatePrettyNameFrom(meta.pretty);
       symInfo.updateSemanticKindFrom(meta.kind);
       symInfo.rawMeta = meta;
       if (symInfo.isCallable()) {
@@ -524,6 +557,7 @@ export default class KnowledgeBase {
         symInfo.fields = meta.fields.map((raw) => {
           const o = Object.assign({}, raw);
           o.symInfo = this.lookupRawSymbol(raw.sym);
+          o.typeSymInfo = raw.typesym ? this.lookupRawSymbol(raw.typesym) : null;
           return o;
         });
       }

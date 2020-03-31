@@ -80,7 +80,10 @@ export let KBSymbolViewBinding = {
   },
 
   makeWidgetForModel(sessionThing, model) {
-    if (!model.symInfo) {
+    if (!model || !model.symInfo) {
+      // TODO: Improve this flow and maybe this error.  In general, we should
+      // always have a symInfo because we make them before we find out if they
+      // actually exist or not.
       return <div>Search did not find the symbol, sorry.</div>;
     }
     return (

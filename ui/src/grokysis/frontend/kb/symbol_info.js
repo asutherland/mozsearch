@@ -100,6 +100,10 @@ export default class SymbolInfo extends EE {
     this.semanticKind = 'unknown';
     this.implKind = 'impl';
 
+    this.platforms = null;
+    this.variants = null;
+    this.canonVariant = null;
+
     /**
      * Direct superclasses of this symbol with symInfo clobbered into each meta
      * object.

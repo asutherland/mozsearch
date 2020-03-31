@@ -332,7 +332,7 @@ body.toolbox-inserted {
     color: white;
     padding: 0 .5rem;
 }
-.results code {
+.results code, .code-peek {
     white-space: pre;
 }
 .result-head td
