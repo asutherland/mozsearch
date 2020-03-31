@@ -63,7 +63,7 @@ class RawSearchResults(object):
     def add_paths(self, paths):
         self.paths.extend(paths)
 
-    def add_symbol(self, raw_sym, pretty_sym, data):
+    def add_symbol(self, raw_sym, data):
         '''
         Given a symbol in crossrefs representation, process it into our output
         representation.  This mainly means splitting `data` into
@@ -76,7 +76,6 @@ class RawSearchResults(object):
 
         sym_info = {}
         sym_info['symbol'] = raw_sym
-        sym_info['pretty'] = pretty_sym
 
         hits_by_pathkind = sym_info['hits'] = {}
         # the goal here is to go from the flattened tuple of [kind, path, lines]

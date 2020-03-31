@@ -469,7 +469,7 @@ def identifier_sorch(search, tree_name, needle, complete, fold_case):
             # XXX we could pass line_modifier here and have it be used; the
             # logic probably still holds.  OTOH, having the full symbol that
             # matched by prefix doesn't seem like the end of the world.
-            search.add_symbol(sym, q, sym_data)
+            search.add_symbol(sym, sym_data)
 
 def get_json_sorch_results(tree_name, query):
     '''
@@ -532,7 +532,7 @@ def get_json_sorch_results(tree_name, query):
         for symbol in symbols.split(','):
             sym_data = crossrefs.lookup_single_symbol(tree_name, symbol)
             if sym_data:
-                search.add_symbol(symbol, demangle(symbol), sym_data)
+                search.add_symbol(symbol, sym_data)
     elif 'id' in parsed:
         search.set_path_filter(parsed.get('pathre'))
         identifier_sorch(search, tree_name, parsed['id'], complete=True, fold_case=fold_case)
