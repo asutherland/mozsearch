@@ -53,14 +53,17 @@ function makeGrokContext() {
       tracks: ['top', 'content'],
       defaults: {
         top: [
+          // Remove the searchField from being a default until it's fixed.
+          /*
           {
             type: 'searchField',
             persisted: {
               initialValue: ''
             },
           },
+          */
           {
-            type: 'diagram',
+            type: 'symbolContext',
             persisted: {}
           }
         ],
