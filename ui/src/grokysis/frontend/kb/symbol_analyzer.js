@@ -147,7 +147,7 @@ const SYMBOL_ANALYSIS_TRAVERSALS = [
       }
       return new Set(symInfo.supers.map(x => x.symInfo));
     },
-    traverseNext: ['SUPERCLASSES'],
+    traverseNext: ['SUPERCLASSES', 'VARIANTS'],
   },
   {
     name: 'SUBCLASSES',
