@@ -163,6 +163,10 @@ export default class SessionThing {
       this, type, payload, context);
   }
 
+  markDirty() {
+    this.track.markDirty();
+  }
+
   removeSelf() {
     if (this.model) {
       this.model.destroy();

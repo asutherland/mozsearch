@@ -285,12 +285,17 @@ export default class SessionManager extends EE {
         // throw.
         throw new Error('redundant slot message registration');
       } else {
+        // XXX It's not clear this eviction notification makes sense as-is
+        // given that my canonical example (basic manual diagram) didn't handle
+        // it correctly.
+        /*
         try {
           existing.callback(null);
         } catch (ex) {
           console.error('evicted slot message callback unhappy', sessionThing,
                         fullSlotName, ex);
         }
+        */
       }
     }
     this.slotMessageRoutings.set(fullSlotName, { sessionThing, callback });

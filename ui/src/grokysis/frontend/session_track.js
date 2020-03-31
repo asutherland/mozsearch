@@ -235,13 +235,22 @@ export default class SessionTrack extends EE {
    */
   removeThing(thing) {
     const idx = this.things.indexOf(thing);
-    if (idx !== -1) {
-      this.things.splice(idx, 1);
-      this.manager.sessionThingRemoved(thing);
-
-      this.serial++;
-      this.emit('dirty', this);
+    if (idx === -1) {
+      return;
     }
+
+    this.things.splice(idx, 1);
+    this.manager.sessionThingRemoved(thing);
+
+    if (thing === this.temporarilySelectedThing) {
+      this.temporarilySelectedThing = null;
+    }
+    if (thing === this.selectedThing) {
+      let nextIdx = Math.max(0, Math.min(this.things.length - 1, idx - 1));
+      this.selectThing(this.things[nextIdx], 'click');
+    }
+
+    this.markDirty();
   }
 
   updatePersistedState(thing, newState, sessionMeta) {
@@ -262,6 +271,10 @@ export default class SessionTrack extends EE {
    *   needs to re-run itself to restore from the new persisted state.
    */
   sessionThingReplaced() {
+    this.markDirty();
+  }
+
+  markDirty() {
     this.serial++;
     this.emit('dirty');
   }
