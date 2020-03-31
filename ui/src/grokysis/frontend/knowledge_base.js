@@ -448,19 +448,24 @@ export default class KnowledgeBase {
     // Nothing to do if this is already a variant or if the symbol has no
     // variants.
     if (symInfo.canonVariant ||
-        !symInfo.__crossRefData ||
-        !symInfo.__crossRefData.variants ||
-        !symInfo.__crossRefData.variants.length) {
+        !symInfo.rawMeta ||
+        !symInfo.rawMeta.variants ||
+        !symInfo.rawMeta.variants.length) {
       return;
     }
 
     const variants = symInfo.variants = [];
-    for (const variantData of symInfo.__crossRefData.variants) {
+    for (const variantMeta of symInfo.rawMeta.variants) {
       const varSymInfo = new SymbolInfo({
         rawName: symInfo.varName,
         prettyName: symInfo.fullName,
       });
       varSymInfo.canonVariant = symInfo;
+      const variantData = {
+        consumes: [],
+        hits: {},
+        meta: variantMeta
+      };
       this.symbolAnalyzer.injectCrossrefData(varSymInfo, variantData);
       variants.push(varSymInfo);
     }
@@ -472,7 +477,6 @@ export default class KnowledgeBase {
    */
   _processSymbolRawSymInfo(symInfo, rawSymInfo) {
     symInfo.__crossrefData = rawSymInfo;
-    symInfo.platforms = rawSymInfo.platforms || ONLY_PLATFORM;
 
     // ## Consume "meta" data
     // XXX Currently, "use" links do not include an explicit "kind".  It may
@@ -492,6 +496,9 @@ export default class KnowledgeBase {
       symInfo.updatePrettyNameFrom(meta.pretty);
       symInfo.updateSemanticKindFrom(meta.kind);
       symInfo.rawMeta = meta;
+
+      symInfo.platforms = meta.platforms || ONLY_PLATFORM;
+
       if (symInfo.isCallable()) {
         // XXX it might also make sense to call this 'inferred-function' and
         // have isCallable aware of that magic type.
