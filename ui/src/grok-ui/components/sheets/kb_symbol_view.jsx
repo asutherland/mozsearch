@@ -36,9 +36,23 @@ export class KBSymbolViewModel {
   constructor({ sessionThing, symInfo }) {
     this.sessionThing = sessionThing;
     this.symInfo = symInfo;
+
+    // We need to dirty the sessionThing when the symbol finally gets its
+    // fullName.  For simplicity right now we'll listen to all changes, but
+    // only sensitize to markDirty when we know we didn't have it yet.
+    this.waitingForFullName = !symInfo.fullName;
+    this.symInfo.on('dirty', this.onDirty, this);
+  }
+
+  onDirty() {
+    if (this.waitingForFullName && this.symInfo.fullName) {
+      this.sessionThing.markDirty();
+      this.waitingForFullName = false;
+    }
   }
 
   destroy() {
+    this.symInfo.removeListener('dirty', this.onDirty, this);
   }
 }
 
