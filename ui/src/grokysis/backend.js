@@ -118,6 +118,7 @@ class BackendRouter {
   }
 
   msg_deleteSessionThingById(id) {
+    console.log('starting to delete session id', id);
     return this.db.deleteSessionThingById(id);
   }
 }

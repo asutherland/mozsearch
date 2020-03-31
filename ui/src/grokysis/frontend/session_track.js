@@ -240,14 +240,22 @@ export default class SessionTrack extends EE {
     }
 
     this.things.splice(idx, 1);
-    this.manager.sessionThingRemoved(thing);
+    this.manager.sessionThingRemoved(thing, this);
 
     if (thing === this.temporarilySelectedThing) {
       this.temporarilySelectedThing = null;
     }
     if (thing === this.selectedThing) {
+      // Null out to avoid the thing being invoking selectThing to avoid
+      // confusing any logic.
+      this.selectedThing = null;
       let nextIdx = Math.max(0, Math.min(this.things.length - 1, idx - 1));
       this.selectThing(this.things[nextIdx], 'click');
+    }
+    // If the thing was anything but the last thing, then we do need to update
+    // at least some index positions, so let's just update them all.
+    if (idx !== this.things.length) {
+      this._updatePersistedThingsBecauseOfOrderingChange();
     }
 
     this.markDirty();

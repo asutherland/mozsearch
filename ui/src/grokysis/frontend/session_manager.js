@@ -213,7 +213,7 @@ export default class SessionManager extends EE {
     }
   }
 
-  sessionThingRemoved(removedThing) {
+  sessionThingRemoved(removedThing/*, track */) {
     // ## TODO: some kind of undo handling via history state pushing.
 
     // ## Remove from persistence so it never comes back again.
