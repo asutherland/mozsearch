@@ -296,6 +296,10 @@ export default class SymbolInfo extends EE {
     return this.sourceFileInfo && otherSym.sourceFileInfo === this.sourceFileInfo;
   }
 
+  isHackGeneratedIPC() {
+    return this.sourceFileInfo && this.sourceFileInfo.dirPath.startsWith('__GENERATED__/ipc/');
+  }
+
   /**
    * Use directory as the unit of coupling.  This potentially might want
    * variations where we use the bugzilla component mapping.

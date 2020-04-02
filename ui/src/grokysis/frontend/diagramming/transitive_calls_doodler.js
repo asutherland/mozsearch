@@ -29,9 +29,19 @@ export default class TransitiveCallDoodler {
 
       // Only keep in-module calls
       let calls = Array.from(curSym[callsPropName]);
+      let leafCalls = [];
       if (limitToModule) {
         calls = calls.filter((otherSym) => {
-          return rootSym.isSameDirectoryAs(otherSym);
+          if (rootSym.isSameDirectoryAs(otherSym)) {
+            return true;
+          }
+          // XXX sorta hack here to let us pass a single layer of IPC calls
+          // through.  We really just want to be able to identify IPC methods
+          // that are explicitly part of the module
+          if (otherSym.isHackGeneratedIPC()) {
+            leafCalls.push(otherSym);
+          }
+          return false;
         });
       }
       if (calls.length > MAX_CALL_BRANCHING) {
@@ -51,6 +61,13 @@ export default class TransitiveCallDoodler {
         if (!considered.has(nextSym)) {
           toTraverse.push(nextSym);
           considered.add(nextSym);
+        }
+      }
+      for (const nextSym of leafCalls) {
+        if (callsOut) {
+          diagram.ensureEdge(curSym, nextSym);
+        } else {
+          diagram.ensureEdge(nextSym, curSym);
         }
       }
     }
