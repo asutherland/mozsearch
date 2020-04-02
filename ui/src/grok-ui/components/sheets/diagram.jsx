@@ -21,6 +21,8 @@ export class DiagramModel {
 
     this.sessionThing.handleSlotMessage(
       'addEdge', this.onAddEdge.bind(this));
+    this.sessionThing.handleSlotMessage(
+      'styleNode', this.onStyleNode.bind(this));
   }
 
   destroy() {
@@ -29,6 +31,13 @@ export class DiagramModel {
 
   onAddEdge({ from, to }) {
     this.diagram.ensureEdge(from, to);
+  }
+
+  onStyleNode({ rawSymbol, styling }) {
+    const { grokCtx } = this.diagram;
+    const symInfo = grokCtx.kb.lookupRawSymbol(rawSymbol);
+    this.diagram.styleNode(symInfo, styling);
+    this.diagram.markDirty();
   }
 }
 

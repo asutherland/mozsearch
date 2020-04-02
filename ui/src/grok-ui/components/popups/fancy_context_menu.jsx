@@ -121,6 +121,28 @@ export default class FancyContextMenu extends DirtyingComponent {
           Log symInfo to console for <b>{symInfo.prettiestName}</b>
         </Menu.Item>
       );
+
+      const stylingFactory = (color) => {
+        return () => {
+          sessionThing.sendSlotMessage('diagram', 'styleNode',
+            {
+              rawSymbol: symInfo.rawName,
+              styling: `, fontcolor="${color}"`
+            });
+        }
+      }
+
+      items.push(
+        <Menu.Item
+          key="diagram-stylize-color"
+          data-context-show="diagram-stylize"
+          link
+          onClick={ stylingFactory('blue') }
+        >
+          <Icon name="building" />
+          Color <b>{symInfo.prettiestName}</b> blue in diagram.
+        </Menu.Item>
+      );
     }
 
     return (
