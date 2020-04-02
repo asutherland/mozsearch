@@ -32,24 +32,39 @@ export class DiagramModel {
   }
 }
 
+/**
+ * Evolving.  Currently supports:
+ * - deserializing a serialized diagram, but I don't think they ever get
+ *   serialized yet?
+ *   - TODO: support serializing
+ * - creating an auto-diagram from a given diagram type.
+ */
 export let DiagramSheetBinding = {
   icon: 'pencil',
   slotName: 'diagram',
   spawnable: 'Diagram',
   makeModel(sessionThing, persisted) {
-    const diagram =
-      sessionThing.grokCtx.kb.restoreDiagram(persisted.serialized || null);
+    const { grokCtx } = sessionThing;
+    let diagram;
+    if (persisted.serialized) {
+      diagram = grokCtx.kb.restoreDiagram(persisted.serialized);
+    } else if (persisted.diagramType) {
+      const symInfo = grokCtx.kb.lookupRawSymbol(persisted.rawSymbol);
+      diagram = grokCtx.kb.diagramSymbol(symInfo, persisted.diagramType);
+    } else {
+      diagram = grokCtx.kb.restoreDiagram(null);
+    }
     return new DiagramModel({ sessionThing, diagram });
   },
 
   makeLabelForModel(sessionThing, model) {
-    return model.diagram.name;
+    return `Diagram: ${model.diagram.name}`;
   },
 
   makeRichLabelInfoForModel(sessionThing, model) {
     return {
       primary: model.diagram.name,
-      secondary: "",
+      secondary: "Diagram",
       actions: [],
     };
   },

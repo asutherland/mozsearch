@@ -10,6 +10,9 @@ export class HierNode {
     this.depth = depth;
     this.parent = parent;
 
+    // XXX experimental styling.
+    this.styling = null;
+
     // One of group/node for now
     this.nodeKind = null;
     // One of process/thread/class/method/etc.
@@ -112,6 +115,10 @@ export class HierNode {
   computeNodeStyling() {
     if (this.instanceGroup) {
       return this.instanceGroup.computeNodeStyling(this);
+    }
+    // XXX handle instance also being applied...
+    if (this.styling) {
+      return this.styling;
     }
     return '';
   }

@@ -8,6 +8,7 @@ import ClassDiagram from './diagramming/class_diagram.js';
 import HierarchyDoodler from './diagramming/hierarchy_doodler.js';
 import InternalDoodler from './diagramming/internal_doodler.js';
 import PathsBetweenDoodler from './diagramming/paths_between_doodler.js';
+import TransitiveCallDoodler from './diagramming/transitive_calls_doodler.js';
 
 /// This serves as a limit on in-edge processing for uses.  If we see that we
 /// have uses across more than this many file hits for uses, then we don't
@@ -431,7 +432,7 @@ export default class KnowledgeBase {
    * locating all the members of a class or all the symbols in a compilation
    * unit.)
    */
-  async ensureSymbolAnalysis(symInfo, { analysisMode }) {
+  ensureSymbolAnalysis(symInfo, { analysisMode }) {
     return this.symbolAnalyzer.ensureSymbolAnalysis(symInfo, analysisMode);
   }
 
@@ -737,7 +738,21 @@ export default class KnowledgeBase {
         doodler.doodleHierarchy(symInfo, diagram);
         break;
       }
+
+      case 'calls-out': {
+        const doodler = new TransitiveCallDoodler();
+        doodler.doodleCalls(this.grokCtx, symInfo, diagram, true);
+        break;
+      }
+
+      case 'calls-in': {
+        const doodler = new TransitiveCallDoodler();
+        doodler.doodleCalls(this.grokCtx, symInfo, diagram, false);
+        break;
+      }
     }
+
+    diagram.name = diagramType;
 
     return diagram;
   }

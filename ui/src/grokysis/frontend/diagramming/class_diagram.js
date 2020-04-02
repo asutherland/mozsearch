@@ -24,7 +24,7 @@ export class AutoSymHierBuilder extends HierBuilder {
    * Create a HierNode wrapping the provided symbol, returning the provided
    * hierNode.
    */
-  addSymNode(sym) {
+  addSymNode(sym, styling=null) {
     const pathParts = sym.fullyQualifiedParts;
 
     let cur = this.root;
@@ -35,6 +35,7 @@ export class AutoSymHierBuilder extends HierBuilder {
     }
 
     cur.updateSym(sym);
+    cur.styling = styling;
 
     this.symsToHierNodes.set(sym, cur);
   }
@@ -94,6 +95,14 @@ export default class ClassDiagram extends EE {
     this._serialWhenBatchBegan = 0;
 
     this.nodes = new Set();
+    // For now track the styling separately as it's expected to be used for
+    // exceptional cases like marking overloads and from a debugging perspective
+    // it's nice to have this directly available, but from an efficiency
+    // perspective this is dumb.
+    // TODO: optimize this once the use-case is better understood.  (Overloads
+    // and such may also want some kind of explicit semantics that give rise to
+    // the styling rather than baking in styling from the get-go.)
+    this.nodeStylings = new Map();
     // Keys are source nodes, values are a Map whose keys are the target node
     // and whose value is metadata.
     this.forwardEdges = new Map();
@@ -160,6 +169,11 @@ export default class ClassDiagram extends EE {
     // at load time look them all up, plus add ourselves as a listener for when
     // file analyses complete so we can get more correct as things get loaded
     // in.
+  }
+
+  // XXX experimental styling
+  styleNode(node, style) {
+    this.nodeStylings.set(node, style);
   }
 
   ensureEdge(from, to, meta) {
@@ -426,7 +440,7 @@ export default class ClassDiagram extends EE {
 
     // ## Add all nodes
     for (const sym of this.nodes) {
-      builder.addSymNode(sym);
+      builder.addSymNode(sym, this.nodeStylings.get(sym));
     }
 
     // ## Add the edges.

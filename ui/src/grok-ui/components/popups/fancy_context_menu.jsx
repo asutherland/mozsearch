@@ -22,6 +22,7 @@ export default class FancyContextMenu extends DirtyingComponent {
   render() {
     const {
       grokCtx,
+      sessionThing,
       symInfo,
       //fromSymInfo,
       fileInfo,
@@ -67,66 +68,46 @@ export default class FancyContextMenu extends DirtyingComponent {
         </Menu.Item>
       );
 
+      const diagramMakerFactory = (diagramType) => {
+        return () => {
+          const thing = sessionThing.addThingInOtherTrack({
+            type: 'diagram',
+            persisted: {
+              diagramType,
+              rawSymbol: symInfo.rawName,
+            },
+          });
+          thing.track.selectThing(thing, 'creation');
+        };
+      };
 
-      if (!showingForDecl && symInfo.declLocation) {
+      symInfo.ensureCallEdges();
+      if (symInfo.callsOutTo.size) {
         items.push(
           <Menu.Item
-            key="decl"
-            data-context-show="decl"
+            key="symbolView"
+            data-context-show="symbolView"
             link
-            href={ grokCtx.historyHelper.buildSourceURLForSymbolDecl(symInfo) }
+            onClick={ diagramMakerFactory('calls-out') }
           >
-            <Icon name="building outline" />
-            Go to decl of <b>{symInfo.prettiestName}</b>
+            <Icon name="building" />
+            Diagram calls out of <b>{symInfo.prettiestName}</b>
           </Menu.Item>
         );
       }
 
-      // Always emit the "search for"
-      items.push(
-        <Menu.Item
-          key="sym-search"
-          data-context-show="search"
-          link
-          href={ grokCtx.historyHelper.buildSearchURLForSymbols(symInfo.rawName) }
-        >
-          <Icon name="searchengin" />
-          Search for {symInfo.semanticKind} <b>{symInfo.prettiestName}</b>
-        </Menu.Item>
-      );
-
-      if (symInfo.supers) {
-        for (const superInfo of symInfo.supers) {
-          const relSymInfo = superInfo.symInfo;
-          items.push(
-            <Menu.Item
-              key={ `super-search-${relSymInfo.rawName}` }
-              data-context-show="search"
-              link
-              href={ grokCtx.historyHelper.buildSearchURLForSymbols(relSymInfo.rawName) }
-            >
-              <Icon name="searchengin" />
-              Search for super <b>{relSymInfo.prettiestName}</b>
-            </Menu.Item>
-          );
-        }
-      }
-
-      if (symInfo.overrides) {
-        for (const overrideInfo of symInfo.overrides) {
-          const relSymInfo = overrideInfo.symInfo;
-          items.push(
-            <Menu.Item
-              key={ `override-search-${relSymInfo.rawName}` }
-              data-context-show="search"
-              link
-              href={ grokCtx.historyHelper.buildSearchURLForSymbols(relSymInfo.rawName) }
-            >
-              <Icon name="searchengin" />
-              Search for overridden <b>{relSymInfo.prettiestName}</b>
-            </Menu.Item>
-          );
-        }
+      if (symInfo.receivesCallsFrom.size) {
+        items.push(
+          <Menu.Item
+            key="symbolView"
+            data-context-show="symbolView"
+            link
+            onClick={ diagramMakerFactory('calls-in') }
+          >
+            <Icon name="building" />
+            Diagram calls into <b>{symInfo.prettiestName}</b>
+          </Menu.Item>
+        );
       }
     }
 

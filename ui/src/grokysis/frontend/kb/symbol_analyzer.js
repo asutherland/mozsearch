@@ -254,7 +254,7 @@ const SYMBOL_ANALYSIS_MODES = [
   {
     name: 'context',
     traversals: ['SELF', 'SUPERCLASSES', 'SUBCLASSES', 'PARENT', 'FIELDS', 'METHODS', 'VARIANTS'],
-    traversFile: true,
+    traverseFile: true,
     /// `traversalInfos` will be clobbered into place and reference the objects
     /// found in SYMBOL_ANALYSIS_TRAVERSALS
     traversalInfos: null,
@@ -266,7 +266,32 @@ const SYMBOL_ANALYSIS_MODES = [
     /// `traversalInfos` will be clobbered into place and reference the objects
     /// found in SYMBOL_ANALYSIS_TRAVERSALS
     traversalInfos: null,
-  }
+  },
+  // For both of these, the choice of INDIRECT over DIRECT is somewhat
+  // arbitrary.  I'm introducing these for the `TransitiveCallDoodler` which
+  // is walking the symbols as they're analyzed.  For its own local analysis,
+  // it currently only needs DIRECT, but choosing INDIRECT is somewhat of an
+  // optimization as we expect to also traverse everything indirect finds, and
+  // this allows potentially more aggressive parallelism (when implemented).
+  // However, it might also be the case that indirect lets us make a better
+  // decision about cases where we're going off into the weeds and cutting the
+  // graph at that point.
+  {
+    name: 'calls-out',
+    traversals: ['INDIRECT_CALLS'],
+    traverseFile: false,
+    /// `traversalInfos` will be clobbered into place and reference the objects
+    /// found in SYMBOL_ANALYSIS_TRAVERSALS
+    traversalInfos: null,
+  },
+  {
+    name: 'calls-in',
+    traversals: ['INDIRECTLY_CALLED_BY'],
+    traverseFile: false,
+    /// `traversalInfos` will be clobbered into place and reference the objects
+    /// found in SYMBOL_ANALYSIS_TRAVERSALS
+    traversalInfos: null,
+  },
 ];
 
 /**
@@ -504,6 +529,8 @@ export default class SymbolAnalyzer {
       if (task.todo.length === 0) {
         this._prioritizedTasks.shift();
         this.activeTasksBySym.delete(task.initialSym);
+        task._doneResolve();
+        task._doneResolve = null;
       }
     }
   }
