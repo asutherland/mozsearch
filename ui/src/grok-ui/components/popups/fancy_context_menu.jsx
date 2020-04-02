@@ -85,8 +85,8 @@ export default class FancyContextMenu extends DirtyingComponent {
       if (symInfo.callsOutTo.size) {
         items.push(
           <Menu.Item
-            key="symbolView"
-            data-context-show="symbolView"
+            key="diagram-calls-out"
+            data-context-show="diagram-calls-out"
             link
             onClick={ diagramMakerFactory('calls-out') }
           >
@@ -99,8 +99,8 @@ export default class FancyContextMenu extends DirtyingComponent {
       if (symInfo.receivesCallsFrom.size) {
         items.push(
           <Menu.Item
-            key="symbolView"
-            data-context-show="symbolView"
+            key="diagram-calls-in"
+            data-context-show="diagram-calls-in"
             link
             onClick={ diagramMakerFactory('calls-in') }
           >
@@ -109,6 +109,18 @@ export default class FancyContextMenu extends DirtyingComponent {
           </Menu.Item>
         );
       }
+
+      items.push(
+        <Menu.Item
+          key="log-symbol"
+          data-context-show="log-symbol"
+          link
+          onClick={ () => { console.log('You picked', symInfo); } }
+        >
+          <Icon name="building" />
+          Log symInfo to console for <b>{symInfo.prettiestName}</b>
+        </Menu.Item>
+      );
     }
 
     return (
