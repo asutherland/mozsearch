@@ -672,7 +672,7 @@ export default class KnowledgeBase {
               // If this symbol is eligible for call relationships, then this is
               // technically also an overflow of calls into it.
               if (symInfo.isCallable()) {
-                this.symbolAnalyzer.markExcessive(symInfo, 'DIRECTLY_CALLED_BY');
+                this.symbolAnalyzer.markExcessive(symInfo, 'CALLS_IN');
               }
             } else {
               for (const pathLines of pathLinesArray) {
