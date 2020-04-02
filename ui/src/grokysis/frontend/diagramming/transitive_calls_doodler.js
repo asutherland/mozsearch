@@ -26,7 +26,7 @@ export default class TransitiveCallDoodler {
       const calls = curSym[callsPropName];
       if (calls.size > MAX_CALL_BRANCHING) {
         overloadBailed.add(curSym);
-        overloadBailed.styleNode(curSym, 'color="red"');
+        diagram.styleNode(curSym, 'color="red"');
         continue;
       }
 
