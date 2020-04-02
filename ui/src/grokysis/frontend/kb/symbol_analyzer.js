@@ -13,6 +13,10 @@ export class AnalysisTask {
     /// what's actually already been done.
     this.modes = new Set();
 
+    this.activeWorkers = 0;
+    this.descheduled = false;
+    this.complete = false;
+
     /// Total number of distinct [traversal name, symbol] tuples considered for
     /// processing before suppressing traversals that have already been
     /// performed.
@@ -49,10 +53,17 @@ export class AnalysisTask {
     });
   }
 
+  toString() {
+    return `{Task ${Array.from(this.modes).join(',')} of ${this.initialSym.rawName}}`;
+  }
+
   /**
    * Plan to traverse the given symbol using the given traversal.
    */
   planAnalysis(symInfo, traversalInfo) {
+    if (this.complete) {
+      throw new Error(`attempted to plan ${traversalInfo.name} of ${symInfo.rawName} on an already completed task: ${this}`);
+    }
     this.todo.push([symInfo, traversalInfo]);
   }
 
@@ -123,6 +134,9 @@ const SYMBOL_ANALYSIS_TRAVERSALS = [
   {
     name: 'SELF',
     bit: 1 << 0,
+    prepare(/*symInfo*/) {
+      return null;
+    },
     traverse(/*symInfo*/) {
       return null;
     },
@@ -133,6 +147,9 @@ const SYMBOL_ANALYSIS_TRAVERSALS = [
   {
     name: 'USES',
     bit: 1 << 1,
+    prepare(/*symInfo*/) {
+      return null;
+    },
     traverse(/*symInfo*/) {
       return null;
     },
@@ -141,6 +158,9 @@ const SYMBOL_ANALYSIS_TRAVERSALS = [
   {
     name: 'SUPERCLASSES',
     bit: 1 << (SPECIAL_BIT_COUNT + 0),
+    prepare(/*symInfo*/) {
+      return null;
+    },
     traverse(symInfo) {
       if (!symInfo.supers) {
         return EMPTY_SET;
@@ -152,6 +172,9 @@ const SYMBOL_ANALYSIS_TRAVERSALS = [
   {
     name: 'SUBCLASSES',
     bit: 1 << (SPECIAL_BIT_COUNT + 1),
+    prepare(/*symInfo*/) {
+      return null;
+    },
     traverse(symInfo) {
       if (!symInfo.subclasses) {
         return EMPTY_SET;
@@ -163,6 +186,9 @@ const SYMBOL_ANALYSIS_TRAVERSALS = [
   {
     name: 'PARENT',
     bit: 1 << (SPECIAL_BIT_COUNT + 2),
+    prepare(/*symInfo*/) {
+      return null;
+    },
     traverse(symInfo) {
       let parentSet = new Set();
       if (symInfo.parentSym) {
@@ -175,6 +201,9 @@ const SYMBOL_ANALYSIS_TRAVERSALS = [
   {
     name: 'DIRECT_CALLS',
     bit: 1 << (SPECIAL_BIT_COUNT + 3),
+    prepare(/*symInfo*/) {
+      return null;
+    },
     traverse(symInfo) {
       symInfo.ensureCallEdges();
       return new Set(symInfo.callsOut);
@@ -184,6 +213,11 @@ const SYMBOL_ANALYSIS_TRAVERSALS = [
   {
     name: 'INDIRECT_CALLS',
     bit: 1 << (SPECIAL_BIT_COUNT + 4),
+    prepare(symInfo) {
+      // We need all of the out edges analyzed before ensureCallEdges has the
+      // info it needs.
+      return symInfo.outEdges;
+    },
     traverse(symInfo) {
       symInfo.ensureCallEdges();
       return new Set(symInfo.callsOut);
@@ -193,6 +227,11 @@ const SYMBOL_ANALYSIS_TRAVERSALS = [
   {
     name: 'DIRECTLY_CALLED_BY',
     bit: 1 << (SPECIAL_BIT_COUNT + 5),
+    prepare(symInfo) {
+      // We need all of the in edges analyzed before ensureCallEdges has the
+      // info it needs.
+      return symInfo.inEdges;
+    },
     traverse(symInfo) {
       symInfo.ensureCallEdges();
       return new Set(symInfo.receivesCallsFrom);
@@ -202,6 +241,9 @@ const SYMBOL_ANALYSIS_TRAVERSALS = [
   {
     name: 'INDIRECTLY_CALLED_BY',
     bit: 1 << (SPECIAL_BIT_COUNT + 6),
+    prepare(/*symInfo*/) {
+      return EMPTY_SET;
+    },
     traverse(symInfo) {
       symInfo.ensureCallEdges();
       return new Set(symInfo.receivesCallsFrom);
@@ -212,6 +254,9 @@ const SYMBOL_ANALYSIS_TRAVERSALS = [
   {
     name: 'FIELDS',
     bit: 1 << (SPECIAL_BIT_COUNT + 7),
+    prepare(/*symInfo*/) {
+      return EMPTY_SET;
+    },
     traverse(symInfo) {
       if (!symInfo.fields) {
         return EMPTY_SET;
@@ -223,6 +268,9 @@ const SYMBOL_ANALYSIS_TRAVERSALS = [
   {
     name: 'METHODS',
     bit: 1 << (SPECIAL_BIT_COUNT + 8),
+    prepare(/*symInfo*/) {
+      return EMPTY_SET;
+    },
     traverse(symInfo) {
       if (!symInfo.methods) {
         return EMPTY_SET;
@@ -235,6 +283,9 @@ const SYMBOL_ANALYSIS_TRAVERSALS = [
   {
     name: 'VARIANTS',
     bit: 1 << (SPECIAL_BIT_COUNT + 9),
+    prepare(/*symInfo*/) {
+      return EMPTY_SET;
+    },
     traverse(symInfo) {
       this.kb.__processVariants(symInfo);
       if (symInfo.variants) {
@@ -421,6 +472,7 @@ export default class SymbolAnalyzer {
 
       symInfo.__activeTraversalBits &= ~this.selfTraversalInfo.bit;
       symInfo.__completedTraversalBits |= this.selfTraversalInfo.bit;
+console.log('processing data for', symInfo.rawName);
       this.kb._processSymbolRawSymInfo(symInfo, rawSymInfo);
     }
 
@@ -487,9 +539,11 @@ export default class SymbolAnalyzer {
   _planModeTraversal(task, mode) {
     // There is nothing to do if the mode has already been planned.
     if (task.modes.has(mode)) {
+console.log('AN: redundant traversal mode', mode, 'ignored');
       return;
     }
 
+console.log('AN: planning mode', mode, 'traversals of', task.initialSym.rawName);
     const modeInfo = this.modesByName.get(mode);
     for (const traversalInfo of modeInfo.traversalInfos) {
       this._planSymbolTraversal(task, task.initialSym, traversalInfo);
@@ -506,16 +560,44 @@ export default class SymbolAnalyzer {
     // already completed.
     if ((symInfo.__completedTraversalBits & traversalInfo.bit) ||
         (symInfo.__activeTraversalBits & traversalInfo.bit)) {
+console.log('AN:     NOT planning future traversal', traversalInfo.name, 'of', symInfo.rawName,
+          `as part of task ${task} becase`, 'completed?', (symInfo.__completedTraversalBits & traversalInfo.bit),
+          'active?', (symInfo.__activeTraversalBits & traversalInfo.bit));
       return;
     }
-
+console.log('AN:     planning future traversal', traversalInfo.name, 'of', symInfo.rawName,
+`as part of task ${task}`);
     task.planAnalysis(symInfo, traversalInfo);
+  }
+
+  _maybeCompleteTask(task) {
+    if (task.activeWorkers === 0) {
+      task.complete = true;
+      this.activeTasksBySym.delete(task.initialSym);
+      console.log(`AN: COMPLETING task ${task}`);
+      task._doneResolve();
+      task._doneResolve = null;
+      return true;
+    }
+    return false;
   }
 
   /**
    * Spins up additional parallel traversals until `_taskTokens` is 0.
    */
-  _maybeSpinUpWork() {
+  _maybeSpinUpWork(fromTask) {
+    if (fromTask) {
+      if (fromTask.todo.length > 0) {
+        // we mi
+        if (fromTask.descheduled) {
+          this._prioritizedTasks.unshift(fromTask);
+          fromTask.descheduled = false;
+        }
+      } else {
+        this._maybeCompleteTask(fromTask);
+      }
+    }
+
     // If we run out of active tasks, _prioritizedTasks will be empty.  However,
     // we may also find that there's nothing left to to in the loop, in which
     // case we'll explicitly break out.
@@ -526,11 +608,14 @@ export default class SymbolAnalyzer {
       if (rec) {
         this._performOneTraversal(task, rec);
       }
+
+      // If there's nothing more to schedule, we need to remove the tasks from
+      // the list of active prioritized tasks.  However, this doesn't mean that
+      // it's completed.
       if (task.todo.length === 0) {
         this._prioritizedTasks.shift();
-        this.activeTasksBySym.delete(task.initialSym);
-        task._doneResolve();
-        task._doneResolve = null;
+        task.descheduled = true;
+        this._maybeCompleteTask(task);
       }
     }
   }
@@ -554,12 +639,13 @@ export default class SymbolAnalyzer {
 
     // Take a token! (Must be done before going async!)
     this._taskTokens--;
+    task.activeWorkers++;
     try {
       // Use a loop so we can `break` out.  We always break at the bottom of the
       // loop.
       for(;;) {
         const [symInfo, traversalInfo] = rec;
-
+console.log('AN:  processing', traversalInfo.name, 'traversal for', symInfo.rawName);
         await this.ensureSymbolData(symInfo);
 
         // The traversal could already have been performed by something else,
@@ -568,6 +654,8 @@ export default class SymbolAnalyzer {
         // `ensureSymbolData`, but it's arbitrary.
         if ((symInfo.__completedTraversalBits & traversalInfo.bit) ||
             (symInfo.__activeTraversalBits & traversalInfo.bit)) {
+console.log('AN: breaking out of', traversalInfo.name, 'because: completed?', (symInfo.__completedTraversalBits & traversalInfo.bit),
+'active?', (symInfo.__activeTraversalBits & traversalInfo.bit));
           break;
         }
 
@@ -575,9 +663,17 @@ export default class SymbolAnalyzer {
         // should do what we're doing here.
         symInfo.__activeTraversalBits |= traversalInfo.bit;
 
+        const prepareSyms = traversalInfo.prepare(symInfo);
+        if (prepareSyms) {
+          for (const otherSym of prepareSyms) {
+            await this.ensureSymbolData(otherSym);
+          }
+        }
+
         const nextSyms = traversalInfo.traverse(symInfo);
         if (nextSyms) {
           for (const otherSym of nextSyms) {
+console.log('AN:   processing traverse-emitted', otherSym.rawName);
             await this.ensureSymbolData(otherSym);
             for (const nextTraversal of traversalInfo.traverseNextInfos) {
               this._planSymbolTraversal(task, otherSym, nextTraversal);
@@ -585,6 +681,7 @@ export default class SymbolAnalyzer {
           }
         }
 
+console.log('AN:  completing', traversalInfo.name, 'for', symInfo.rawName);
         // Clear the active bit and set the completed bit.
         symInfo.__activeTraversalBits &= ~traversalInfo.bit;
         symInfo.__completedTraversalBits |= traversalInfo.bit;
@@ -596,8 +693,9 @@ export default class SymbolAnalyzer {
       task.completeAnalysis(rec);
       // Give the token back!
       this._taskTokens++;
+      task.activeWorkers--;
     }
 
-    this._maybeSpinUpWork();
+    this._maybeSpinUpWork(task);
   }
 }

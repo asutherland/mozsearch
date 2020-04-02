@@ -173,6 +173,8 @@ export default class ClassDiagram extends EE {
 
   // XXX experimental styling
   styleNode(node, style) {
+    // ensure it's present.
+    this.nodes.add(node);
     this.nodeStylings.set(node, style);
   }
 

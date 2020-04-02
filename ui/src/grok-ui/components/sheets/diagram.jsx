@@ -49,7 +49,12 @@ export let DiagramSheetBinding = {
     if (persisted.serialized) {
       diagram = grokCtx.kb.restoreDiagram(persisted.serialized);
     } else if (persisted.diagramType) {
-      const symInfo = grokCtx.kb.lookupRawSymbol(persisted.rawSymbol);
+      // Look up the symbol and make sure we have all the relevant root info.
+      const symInfo = grokCtx.kb.lookupRawSymbol(
+        persisted.rawSymbol,
+        {
+          analysisMode: 'context',
+        });
       diagram = grokCtx.kb.diagramSymbol(symInfo, persisted.diagramType);
     } else {
       diagram = grokCtx.kb.restoreDiagram(null);
