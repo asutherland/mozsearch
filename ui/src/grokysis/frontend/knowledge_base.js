@@ -583,7 +583,7 @@ export default class KnowledgeBase {
       }
 
       if (meta.overriddenBy) {
-        symInfo.overridenBy = meta.overriddenBy.map(rawSym => {
+        symInfo.overriddenBy = meta.overriddenBy.map(rawSym => {
           const o = {};
           o.symInfo = this.lookupRawSymbol(rawSym);
           return o;

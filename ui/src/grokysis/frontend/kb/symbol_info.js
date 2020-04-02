@@ -253,6 +253,17 @@ export default class SymbolInfo extends EE {
       new Set([...this.outEdges].filter(x => x.isCallable() && !x.isBoring));
     this.receivesCallsFrom =
       new Set([...this.inEdges].filter(x => x.isCallable() && !x.isBoring));
+
+    // Things we call out to could be virtual and overridden by things, so
+    // fold them into what we're counting as called by us.  In theory we might
+    // want metadata that distinguishes what's happening, but maybe not.
+    for (const called of this.callsOutTo) {
+      if (called.overriddenBy) {
+        for (const overridden of called.overriddenBy) {
+          this.callsOutTo.add(overridden.symInfo);
+        }
+      }
+    }
   }
 
   get prettiestName() {

@@ -199,20 +199,8 @@ const SYMBOL_ANALYSIS_TRAVERSALS = [
     traverseNext: ['FIELDS', 'METHODS'],
   },
   {
-    name: 'DIRECT_CALLS',
+    name: 'CALLS_OUT',
     bit: 1 << (SPECIAL_BIT_COUNT + 3),
-    prepare(/*symInfo*/) {
-      return null;
-    },
-    traverse(symInfo) {
-      symInfo.ensureCallEdges();
-      return new Set(symInfo.callsOut);
-    },
-    traverseNext: [],
-  },
-  {
-    name: 'INDIRECT_CALLS',
-    bit: 1 << (SPECIAL_BIT_COUNT + 4),
     prepare(symInfo) {
       // We need all of the out edges analyzed before ensureCallEdges has the
       // info it needs.
@@ -220,13 +208,15 @@ const SYMBOL_ANALYSIS_TRAVERSALS = [
     },
     traverse(symInfo) {
       symInfo.ensureCallEdges();
-      return new Set(symInfo.callsOut);
+      return new Set(symInfo.callsOutTo);
     },
-    traverseNext: ['DIRECT_CALLS'],
+    // The thing we call may be a virtual method that gets overridden by other
+    // methods, and we want to know those.
+    traverseNext: ['OVERRIDDEN_BY'],
   },
   {
-    name: 'DIRECTLY_CALLED_BY',
-    bit: 1 << (SPECIAL_BIT_COUNT + 5),
+    name: 'CALLS_IN',
+    bit: 1 << (SPECIAL_BIT_COUNT + 4),
     prepare(symInfo) {
       // We need all of the in edges analyzed before ensureCallEdges has the
       // info it needs.
@@ -239,16 +229,34 @@ const SYMBOL_ANALYSIS_TRAVERSALS = [
     traverseNext: [],
   },
   {
-    name: 'INDIRECTLY_CALLED_BY',
-    bit: 1 << (SPECIAL_BIT_COUNT + 6),
+    name: 'OVERRIDES',
+    bit: 1 << (SPECIAL_BIT_COUNT + 5),
     prepare(/*symInfo*/) {
-      return EMPTY_SET;
+      return null;
     },
     traverse(symInfo) {
-      symInfo.ensureCallEdges();
-      return new Set(symInfo.receivesCallsFrom);
+      if (!symInfo.overrides) {
+        return EMPTY_SET;
+      }
+      return new Set(symInfo.overrides.map(x => x.symInfo));
     },
-    traverseNext: ['DIRECTLY_CALLED_BY'],
+    traverseNext: [],
+  },
+  {
+    name: 'OVERRIDDEN_BY',
+    bit: 1 << (SPECIAL_BIT_COUNT + 6),
+    prepare(/*symInfo*/) {
+      return null;
+    },
+    traverse(symInfo) {
+      if (!symInfo.overriddenBy) {
+        return EMPTY_SET;
+      }
+      return new Set(symInfo.overriddenBy.map(x => x.symInfo));
+    },
+    // The things we are overridden by could perhaps be overridden themselves?
+    // XXX deal with this more.
+    traverseNext: ['OVERRIDDEN_BY'],
   },
   // Looks up all the fields with no follow-on traversal.
   {
@@ -318,18 +326,9 @@ const SYMBOL_ANALYSIS_MODES = [
     /// found in SYMBOL_ANALYSIS_TRAVERSALS
     traversalInfos: null,
   },
-  // For both of these, the choice of INDIRECT over DIRECT is somewhat
-  // arbitrary.  I'm introducing these for the `TransitiveCallDoodler` which
-  // is walking the symbols as they're analyzed.  For its own local analysis,
-  // it currently only needs DIRECT, but choosing INDIRECT is somewhat of an
-  // optimization as we expect to also traverse everything indirect finds, and
-  // this allows potentially more aggressive parallelism (when implemented).
-  // However, it might also be the case that indirect lets us make a better
-  // decision about cases where we're going off into the weeds and cutting the
-  // graph at that point.
   {
     name: 'calls-out',
-    traversals: ['INDIRECT_CALLS'],
+    traversals: ['CALLS_OUT'],
     traverseFile: false,
     /// `traversalInfos` will be clobbered into place and reference the objects
     /// found in SYMBOL_ANALYSIS_TRAVERSALS
@@ -337,7 +336,7 @@ const SYMBOL_ANALYSIS_MODES = [
   },
   {
     name: 'calls-in',
-    traversals: ['INDIRECTLY_CALLED_BY'],
+    traversals: ['CALLS_IN'],
     traverseFile: false,
     /// `traversalInfos` will be clobbered into place and reference the objects
     /// found in SYMBOL_ANALYSIS_TRAVERSALS
