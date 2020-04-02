@@ -102,6 +102,8 @@ export default class SessionTrack extends EE {
     this.selectedThing = thing;
     thing.sessionMeta.selected = true;
     thing.storeUpdatedSessionMeta();
+    // primarily used to reapply slot routings.
+    this.selectedThing.onSelected();
 
     this.serial++;
     this.emit('dirty', this);

@@ -24,6 +24,8 @@ export default class SessionThing {
 
     this.grokCtx = this.track.manager.grokCtx;
 
+    this.trackedSlotMessages = new Map();
+
     // Finish filling out our shape before calling out.
     this.model = null;
 
@@ -83,11 +85,23 @@ export default class SessionThing {
    * `stopHandlingSlotMessage` allows for removing oneself.
    */
   handleSlotMessage(slotName, callback) {
+    this.trackedSlotMessages.set(slotName, callback);
     this.track.manager.handleSlotMessage(this, slotName, callback);
   }
 
   stopHandlingSlotMessage(slotName) {
+    this.trackedSlotMessages.delete(slotName);
     this.track.manager.stopHandlingSlotMessage(this, slotName);
+  }
+
+  _reapplySlotMessages() {
+    for (const [slotName, callback] of this.trackedSlotMessages.entries()) {
+      this.track.manager.handleSlotMessage(this, slotName, callback);
+    }
+  }
+
+  onSelected() {
+    this._reapplySlotMessages();
   }
 
   /**
