@@ -11,7 +11,15 @@ function bitCount (n) {
 }
 
 /**
+ * Class-diagram specific-ish subclass of HierBuilder that assumes that all
+ * nodes are SymbolInfo instances and uses the inherent hierarchy of the
+ * language namespaces (via `SymbolInfo.fullyQualifiedParts`).  Compare with
+ * the blockly-diagram `HierNodeGenerator` whose nesting is always manual in
+ * nature.
  *
+ * This will likely evolve in the future to delineate along module /
+ * sub-module / component lines as well.  This may happen via kinda/sorta
+ * dynamic auto-faceting.
  */
 export class AutoSymHierBuilder extends HierBuilder {
   constructor(settingOverrides) {

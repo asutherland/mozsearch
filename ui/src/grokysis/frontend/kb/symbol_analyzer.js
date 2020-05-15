@@ -548,7 +548,7 @@ console.log('AN: planning mode', mode, 'traversals of', task.initialSym.rawName)
       this._planSymbolTraversal(task, task.initialSym, traversalInfo);
     }
     if (modeInfo.traverseFile) {
-
+      // TODO: bring back file analysis
     }
     task.modes.add(mode);
     this._maybeSpinUpWork();
