@@ -846,8 +846,9 @@ public:
   // gather mode and we must not restart in gather mode or we'll cause the
   // indexer to visit EVERY identifier, which is way too much data.
   struct AutoTemplateContext {
-    AutoTemplateContext(IndexConsumer *Self)
+    AutoTemplateContext(IndexConsumer *Self, TemplateDecl *Decl)
         : Self(Self)
+        , Template(Decl)
         , CurMode(Self->TemplateStack ? Self->TemplateStack->CurMode : Mode::GatherDependent)
         , Parent(Self->TemplateStack) {
       Self->TemplateStack = this;
@@ -887,6 +888,8 @@ public:
     // Do we need to perform the extra AnalyzeDependent passes (one per
     // instantiation)?
     bool needsAnalysis() const {
+      Self->traceTemplateMeta(Template, depth(), DependentLocations);
+
       if (!DependentLocations.empty()) {
         return true;
       }
@@ -924,8 +927,16 @@ public:
       return false;
     }
 
+    int depth() const {
+      if (Parent) {
+        return Parent->depth() + 1;
+      }
+      return 0;
+    }
+
   private:
     IndexConsumer *Self;
+    TemplateDecl *Template;
     Mode CurMode;
     std::unordered_set<unsigned> DependentLocations;
     AutoTemplateContext *Parent;
@@ -945,7 +956,7 @@ public:
   }
 
   bool TraverseClassTemplateDecl(ClassTemplateDecl *D) {
-    AutoTemplateContext Atc(this);
+    AutoTemplateContext Atc(this, D);
     Super::TraverseClassTemplateDecl(D);
 
     if (!Atc.needsAnalysis()) {
@@ -972,7 +983,7 @@ public:
   }
 
   bool TraverseFunctionTemplateDecl(FunctionTemplateDecl *D) {
-    AutoTemplateContext Atc(this);
+    AutoTemplateContext Atc(this, D);
     if (Atc.inGatherMode()) {
       Super::TraverseFunctionTemplateDecl(D);
     }
@@ -1440,6 +1451,45 @@ public:
     F->Output.push_back(std::move(ros.str()));
   }
 
+  void traceTemplateMeta(TemplateDecl *Decl, int Depth,
+                         const std::unordered_set<unsigned> &DependentLocations) {
+    SourceLocation Loc = Decl->getLocation();
+    std::string LocStr = locationToString(Loc);
+
+    FileInfo *F = getFileInfo(Loc);
+
+    std::string json_str;
+    llvm::raw_string_ostream ros(json_str);
+    llvm::json::OStream J(ros);
+    // Start the top-level object.
+    J.objectBegin();
+
+    J.attribute("loc", LocStr);
+    J.attribute("trace", "template");
+    // The TemplateDecl may not have a usable name for mangling on its own?
+    // (I'm a bit confused about the template hierarchy still.)
+    NamedDecl *Named = Decl->getTemplatedDecl();
+    J.attribute("pretty", getQualifiedName(Named));
+    J.attribute("sym", getMangledName(CurMangleContext, Named));
+    J.attribute("depth", Depth);
+
+    J.attributeBegin("depLocs");
+    J.arrayBegin();
+    for (auto depRawLoc : DependentLocations) {
+      SourceLocation depLoc = SourceLocation::getFromRawEncoding(depRawLoc);
+      J.value(locationToString(depLoc));
+    }
+    J.arrayEnd();
+    J.attributeEnd();
+
+    // End the top-level object.
+    J.objectEnd();
+
+    // we want a newline.
+    ros << '\n';
+    F->Output.push_back(std::move(ros.str()));
+  }
+
   void normalizeLocation(SourceLocation *Loc) {
     *Loc = SM.getSpellingLoc(*Loc);
   }
@@ -1755,8 +1805,39 @@ public:
     return true;
   }
 
+  bool VisitCXXNewExpr(CXXNewExpr *E) {
+    // Uses of new in templates manifest as CXXNewExpr nodes in the raw
+    // template where there is no CXXConstructExpr.  The CXXConstructExpr only
+    // shows up as a child of CXXNewExpr when specialized.  Additionally while
+    // the CXXNewExpr has a stable location, it's pointing at the `new`, not the
+    // type-name which is where the CXXConstructExpr shows up.
+    //
+    // So when there's a template stack present and the constructor is type
+    // dependent, we mark the CXXNewExpr's location as dependent in gather mode
+    // and specially handle the CXXNewExpr to forward the new's Loc to the
+    // CXXConstructExpr.
+    //
+    // TODO: Further improve things so that the `T` either gets to be the
+    // symbol location of the construction, or even more preferably, decouple
+    // the reported location so that we can place the emission at the
+    // instantiation of the containing template.
+    if (TemplateStack) {
+      if (TemplateStack->inGatherMode() && E->isTypeDependent()) {
+        TemplateStack->visitDependent(E->getBeginLoc());
+      } else {
+        if (const CXXConstructExpr *E2 = E->getConstructExpr()) {
+          return _VisitCXXConstructExpr(E2, E->getBeginLoc());
+        }
+      }
+    }
+    return true;
+  }
+
   bool VisitCXXConstructExpr(CXXConstructExpr *E) {
-    SourceLocation Loc = E->getBeginLoc();
+    return _VisitCXXConstructExpr(E, E->getBeginLoc());
+  }
+
+  bool _VisitCXXConstructExpr(const CXXConstructExpr *E, SourceLocation Loc) {
     normalizeLocation(&Loc);
     if (!isInterestingLocation(Loc)) {
       return true;
