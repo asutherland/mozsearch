@@ -134,6 +134,10 @@ class GrokAnalysisFrontend {
   /**
    * Perform a search, immediately returning a FilteredResults instance that
    * will dirty itself once results have been received.
+   *
+   * @param searchStr
+   *   The `q` portion of the search query.  In the future this would want to
+   *   be queryParams.
    */
   performSyncSearch(searchStr) {
     const filtered = new FilteredResults({ rawResultsList: [] });

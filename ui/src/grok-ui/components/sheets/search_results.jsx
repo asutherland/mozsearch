@@ -16,7 +16,18 @@ export default class SearchResultsSheet extends DirtyingComponent {
 
   render() {
     const { sessionThing, grokCtx, model } = this.props;
+
+    // It's possible we're still awaiting the arrival of the first set of raw
+    // results.  In that case, return nothing.  We'll re-render when the
+    // filtered results dirties itself.
+    if (model.filteredResults.rawResultsList.length === 0) {
+      return <div></div>;
+    }
+
     const rawResults = model.filteredResults.rawResultsList[0];
+
+    // For debugging / understanding, currently log this whenever we re-render.
+    console.log('rendering rawResults', rawResults);
     return (
       <RawResults
         sessionThing={ sessionThing }
@@ -55,6 +66,12 @@ export let SearchResultsBinding = {
     if (ingestArgs) {
       filteredResults =
         sessionThing.grokCtx.ingestExistingSearchResults(ingestArgs);
+    } else {
+      console.log("Model initiating search using persisted data:", persisted);
+      // This will return a synchronous value that will update when the results
+      // arrive.
+      filteredResults =
+        sessionThing.grokCtx.performSyncSearch(persisted.queryParams.q);
     }
     return new SearchResultsModel(sessionThing, persisted, filteredResults);
   },
