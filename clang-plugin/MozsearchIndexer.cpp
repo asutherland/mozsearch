@@ -6,6 +6,7 @@
 #include "clang/AST/AST.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/ASTTypeTraits.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/Mangle.h"
@@ -60,6 +61,9 @@ using std::make_unique;
 #endif
 
 using namespace clang;
+// In clang 9 DynTypedNode lives in ast_type_traits, but was subequently moved
+// up to clang.
+using clang::ast_type_traits::DynTypedNode;
 
 const std::string GENERATED("__GENERATED__" PATHSEP_STRING);
 
@@ -847,7 +851,8 @@ public:
   // indexer to visit EVERY identifier, which is way too much data.
   struct AutoTemplateContext {
     AutoTemplateContext(IndexConsumer *Self, TemplateDecl *Decl)
-        : Self(Self)
+        : EffectiveDecl(nullptr)
+        , Self(Self)
         , Template(Decl)
         , CurMode(Self->TemplateStack ? Self->TemplateStack->CurMode : Mode::GatherDependent)
         , Parent(Self->TemplateStack) {
@@ -888,7 +893,7 @@ public:
     // Do we need to perform the extra AnalyzeDependent passes (one per
     // instantiation)?
     bool needsAnalysis() const {
-      Self->traceTemplateMeta(Template, depth(), DependentLocations);
+      Self->traceTemplateDecl(Template, depth(), DependentLocations);
 
       if (!DependentLocations.empty()) {
         return true;
@@ -933,6 +938,18 @@ public:
       }
       return 0;
     }
+
+    void useInstantiationAsEffectiveDecl(SourceLocation Loc, const NamedDecl* ND) {
+      EffectiveDecl = ND;
+      EffectiveLoc = Loc;
+      // This method is also used to clear by passing nullptr.
+      if (ND) {
+        Self->traceTemplateSpecialization(Template, depth(), Loc, ND);
+      }
+    }
+
+    const NamedDecl *EffectiveDecl;
+    SourceLocation EffectiveLoc;
 
   private:
     IndexConsumer *Self;
@@ -998,10 +1015,67 @@ public:
       return true;
     }
 
+    // We no longer process specializations for function templates in analysis
+    // mode here, but instead process them in
+    // VisitTemplateSpecializationTypeLoc.
+    return true;
+
     for (auto *Spec : D->specializations()) {
-      for (auto *Rd : Spec->redecls()) {
-        TraverseDecl(Rd);
+      /*
+      auto FD = dyn_cast<FunctionTemplateDecl>(Spec);
+      if (FD && FD->getTemplatedDecl()) {
+        Atc.useInstantiationAsEffectiveDecl(FD->getTemplatedDecl());
       }
+      */
+      // Rd is RedeclarableTemplateDecl
+      for (auto *Rd : Spec->redecls()) {
+        /*
+        auto FD = dyn_cast<FunctionTemplateDecl>(Rd);
+        if (FD && FD->getTemplatedDecl()) {
+          Atc.useInstantiationAsEffectiveDecl(FD->getTemplatedDecl());
+        } else {
+          Atc.useInstantiationAsEffectiveDecl(Rd);
+        }
+        */
+        /*
+        DeclContext *Ctx = Rd->getDeclContext()->getParent();
+        Decl *PD = nullptr;
+        while (Ctx && !PD) {
+          PD = dyn_cast<Decl>(Ctx);
+          Ctx = Ctx->getParent();
+        }
+        if (PD) {
+          Atc.useInstantiationAsEffectiveDecl(PD, Rd);
+        }
+        */
+       DynTypedNode node = DynTypedNode::create(*Rd);
+       traceASTNode(Rd->getLocation(), node);
+
+        auto parents = AstContext->getParents(*Rd);
+        bool walkedEnough = true;
+        while (!parents.empty() ) {
+          if (!walkedEnough) {
+            // We just want to avoid trying to process these.
+          } else if (auto P = parents[0].get<Stmt>()) {
+            Atc.useInstantiationAsEffectiveDecl(P->getBeginLoc(), Rd);
+            break;
+          } else if (auto P = parents[0].get<Decl>()) {
+            Atc.useInstantiationAsEffectiveDecl(P->getLocation(), Rd);
+            break;
+          }
+          parents = AstContext->getParents(parents[0]);
+          walkedEnough = true;
+        }
+        /*
+        if (PD) {
+          Atc.useInstantiationAsEffectiveDecl(PD, Rd);
+        }
+        */
+        //Atc.useInstantiationAsEffectiveDecl(Rd);
+        TraverseDecl(Rd);
+        Atc.useInstantiationAsEffectiveDecl(SourceLocation(), nullptr);
+      }
+      //Atc.useInstantiationAsEffectiveDecl(nullptr);
     }
 
     return true;
@@ -1340,6 +1414,18 @@ public:
       return;
     }
 
+    // If we're pretending the identifier happens at the point of the effective
+    // template intsantiation, then fixup the Loc and and clear out all related
+    // source ranges which won't make any sense.
+    if (TemplateStack && TemplateStack->EffectiveDecl) {
+      Loc = TemplateStack->EffectiveLoc;
+      if (!Loc.isValid()) {
+        return;
+      }
+      PeekRange = SourceRange();
+      NestingRange = SourceRange();
+    }
+
     // Find the file positions corresponding to the token.
     unsigned StartOffset = SM.getFileOffset(Loc);
     unsigned EndOffset = (Flags & LocRangeEndValid)
@@ -1451,9 +1537,9 @@ public:
     F->Output.push_back(std::move(ros.str()));
   }
 
-  void traceTemplateMeta(TemplateDecl *Decl, int Depth,
+  void traceTemplateDecl(TemplateDecl *D, int Depth,
                          const std::unordered_set<unsigned> &DependentLocations) {
-    SourceLocation Loc = Decl->getLocation();
+    SourceLocation Loc = D->getLocation();
     std::string LocStr = locationToString(Loc);
 
     FileInfo *F = getFileInfo(Loc);
@@ -1465,10 +1551,10 @@ public:
     J.objectBegin();
 
     J.attribute("loc", LocStr);
-    J.attribute("trace", "template");
+    J.attribute("trace", "TemplateDecl");
     // The TemplateDecl may not have a usable name for mangling on its own?
     // (I'm a bit confused about the template hierarchy still.)
-    NamedDecl *Named = Decl->getTemplatedDecl();
+    NamedDecl *Named = D->getTemplatedDecl();
     J.attribute("pretty", getQualifiedName(Named));
     J.attribute("sym", getMangledName(CurMangleContext, Named));
     J.attribute("depth", Depth);
@@ -1488,6 +1574,118 @@ public:
     // we want a newline.
     ros << '\n';
     F->Output.push_back(std::move(ros.str()));
+  }
+
+  void traceTemplateSpecialization(TemplateDecl *D, int Depth, SourceLocation Loc, const NamedDecl *ID) {
+    std::string LocStr = locationToString(Loc);
+
+    FileInfo *F = getFileInfo(Loc);
+
+    std::string json_str;
+    llvm::raw_string_ostream ros(json_str);
+    llvm::json::OStream J(ros);
+    // Start the top-level object.
+    J.objectBegin();
+
+    J.attribute("loc", LocStr);
+    J.attribute("trace", "TemplateSpecialization");
+    J.attribute("pretty", ID->getQualifiedNameAsString());
+    J.attribute("sym", getMangledName(CurMangleContext, ID));
+    J.attribute("depth", Depth);
+
+    // End the top-level object.
+    J.objectEnd();
+
+    // we want a newline.
+    ros << '\n';
+    F->Output.push_back(std::move(ros.str()));
+  }
+
+  /**
+   * Helper to log a trace record at the given location providing the context
+   * for a given node.
+   * 
+   * To use it, do:
+   * ```cpp
+   * DynTypedNode node = DynTypedNode::create(*Decl);
+   * traceASTNode(Decl->getLocation(), node);
+   * ```
+   *
+   * At the time of writing this, the trace record will look roughly like:
+   * {
+   *   "loc": "00591:10",
+   *   "trace": "ASTNode",
+   *   "nodes": [
+   *     {
+   *       "kind": "FunctionDecl",
+   *       "parents": [
+   *         {
+   *           "kind": "FunctionTemplateDecl",
+   *           "parents": [
+   *             {
+   *               "kind": "NamespaceDecl",
+   *               "parents": [
+   *                 {
+   *                   "kind": "TranslationUnitDecl",
+   *                   "parents": []
+   *                 }
+   *               ]
+   *             }
+   *           ]
+   *         }
+   *       ]
+   *     }
+   *   ]
+   * }
+   */
+  void traceASTNode(SourceLocation UseLoc, DynTypedNode &Node, int depthAllowed=5) {
+    std::string LocStr = locationToString(UseLoc);
+
+    FileInfo *F = getFileInfo(UseLoc);
+
+    std::string json_str;
+    llvm::raw_string_ostream ros(json_str);
+    llvm::json::OStream J(ros);
+    // Start the top-level object.
+    J.objectBegin();
+
+    J.attribute("loc", LocStr);
+    J.attribute("trace", "ASTNode");
+
+    J.attributeBegin("nodes");
+    J.arrayBegin();
+
+    _traceASTNode(J, Node, depthAllowed);
+
+    J.arrayEnd();
+    J.attributeEnd();
+
+    // End the top-level object.
+    J.objectEnd();
+
+    // we want a newline.
+    ros << '\n';
+    F->Output.push_back(std::move(ros.str()));
+  }
+
+  void _traceASTNode(llvm::json::OStream &J, DynTypedNode &Node, int depthRemaining) {
+    J.objectBegin();
+
+    J.attribute("kind", Node.getNodeKind().asStringRef());
+    if (depthRemaining) {
+      J.attributeBegin("parents");
+      J.arrayBegin();
+
+      const auto& parents = AstContext->getParents(Node);
+      for (auto parent : parents) {
+        _traceASTNode(J, parent, depthRemaining - 1);
+      }
+
+      J.arrayEnd();
+      J.attributeEnd();
+    }
+
+    J.objectEnd();
   }
 
   void normalizeLocation(SourceLocation *Loc) {
@@ -1904,6 +2102,40 @@ public:
     return true;
   }
 
+  /*
+   * ## Uses: TypeLocs and DeclRefExprs, oh my!
+   *
+   * TypeLocs exist for each reference to a given Type in the source. This makes
+   * them perfect for logging uses of types.
+   *
+   * DeclRefExprs reference declarations (variables, functions, etc.).  They
+   * provide a means of getting at their referenced `ValueDecl` via `getDecl()`.
+   * Their declaration is not traversed into as part of the visitor process
+   * (because it's a reference, not a declaration).  This makes them perfect
+   * for logging uses of (non-type) declarations like variables, functions, and
+   * enums.
+   *
+   * ### DeclRefExpr RecursiveASTVisitor Traverse Impl Details
+   *
+   * The Traverse logic for DeclRefExpr:
+   * - Traverse into the `NestedNameSpecifierLoc` via `getQualifierLoc()`
+   *   - If there is a prefix (the basename of the qualifier, if you will),
+   *     it is recursed into via `getPrefix`.
+   *   - If its kind (via getKind) is NestedNameSpecifier::TypeSpec or
+   *     NestedNameSpecifier::TypeSpecWithTemplate, its `TypeLoc` is traversed
+   *     via `getTypeLoc`.  Identifier/NameSpace/NamespaceAlias/Global/Super
+   *     are terminal.
+   * - Traverses into the `DeclarationNameInfo` via `getNameInfo()`
+   *   - If its NameKind (via getName().getNameKind()) is DeclarationName::
+   *     CXXConstructorName/CXXDestructorName/CXXConversionFunctionName, its
+   *     TypeLoc is traversed into via `getNamedTypeInfo().getTypeLoc()`.
+   *   - If its NameKind is CXXDeductionGuideName, that gets traversed.
+   *   - Identifier/ObjCBlabh/CXXOperationName/CXXLiteralOperatorName/
+   *     CXXUsingDirective are terminal.
+   * - Traverses into the `TemplateArgumentLoc` instances via
+   *   `getTemplateArgs()`.
+   */
+
   bool VisitTagTypeLoc(TagTypeLoc L) {
     SourceLocation Loc = L.getBeginLoc();
     normalizeLocation(&Loc);
@@ -1964,6 +2196,35 @@ public:
       std::string Mangled = getMangledName(CurMangleContext, Decl);
       visitIdentifier("use", "type", getQualifiedName(Decl), Loc, Mangled,
                       QualType(), getContext(Loc));
+    } else if (FunctionTemplateDecl *D = dyn_cast<FunctionTemplateDecl>(Td)) {
+      FunctionDecl *Decl = D->getTemplatedDecl();
+      FunctionTemplateDecl *TD = Decl->getPrimaryTemplate();
+
+      traceTemplateSpecialization(TD, 0, Loc, TD);
+
+      // For function template invocations, our goal is to emit dependent uses
+      // at this point where we're calling into the template.
+      //
+      // For state simplicity (potentially at the cost of performance), we
+      // process the canonical, non-specialized declaration for dependent
+      // locations in gather mode so we can identify these dependent locations,
+      // and then re-process this specific specialization, forcing the location
+      // of all visitIdentifier calls to place their output at the location of
+      // the TypeLoc.
+      AutoTemplateContext Atc(this, TD);
+      // (It's possible that there is another AutoTemplateContext on the stack
+      // that's operating in analyze mode, in which case we are also running in
+      // analyze mode.  In that case we don't want to do anything.)
+      if (Atc.inGatherMode()) {
+        Super::TraverseFunctionTemplateDecl(TD);
+        if (Atc.needsAnalysis() || true) {
+          Atc.switchMode();
+
+          Atc.useInstantiationAsEffectiveDecl(Loc, D);
+          TraverseDecl(D);
+          Atc.useInstantiationAsEffectiveDecl(SourceLocation(), nullptr);
+        }
+      }
     }
 
     return true;
