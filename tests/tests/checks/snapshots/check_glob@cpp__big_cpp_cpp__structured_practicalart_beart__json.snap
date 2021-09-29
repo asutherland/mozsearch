@@ -5,7 +5,7 @@ expression: "&json_results"
 ---
 [
   {
-    "loc": "00433:7-12",
+    "loc": "00436:7-12",
     "structured": 1,
     "pretty": "outerNS::PracticalArt::beArt",
     "sym": "_ZN7outerNS12PracticalArt5beArtEv",

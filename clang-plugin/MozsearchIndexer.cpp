@@ -216,18 +216,37 @@ private:
 
   // Tracks the set of declarations that the current expression/statement is
   // nested inside of.
+  //
+  // XXX Base class hack: To deal with base class specifiers which are provided
+  // as `const CXXBaseSpecifier &`, that traversal method tries to reuse the
+  // current `CurDeclContext` as its `Decl`.  In the event there is no outermost
+  // context, it passes a `nullptr` and in that case we do not link/unlink this
+  // `AutoSetContext` into the `CurDeclContext` chain.
+  //
+  // This traverse method was added because otherwise the TraverseRecordDecl and
+  // TraverseCXXRecordDecl AutoSetContexts would mark the base-class type uses
+  // as "field" usages, which is definitely not correct.  There may be a better
+  // traversal method to hook in this case, or just a better way to propagate
+  // the usage information.
   struct AutoSetContext {
-    AutoSetContext(IndexConsumer *Self, NamedDecl *Context, bool VisitImplicit = false)
-        : Self(Self), Prev(Self->CurDeclContext), Decl(Context) {
+    AutoSetContext(IndexConsumer *Self, NamedDecl *Context, int Flags=0, bool VisitImplicit = false)
+        : Self(Self), Prev(Self->CurDeclContext), Decl(Context), Flags(Flags) {
       this->VisitImplicit = VisitImplicit || (Prev ? Prev->VisitImplicit : false);
-      Self->CurDeclContext = this;
+      if (Decl) {
+        Self->CurDeclContext = this;
+      }
     }
 
-    ~AutoSetContext() { Self->CurDeclContext = Prev; }
+    ~AutoSetContext() {
+      if (Decl) {
+        Self->CurDeclContext = Prev;
+      }
+    }
 
     IndexConsumer *Self;
     AutoSetContext *Prev;
     NamedDecl *Decl;
+    int Flags;
     bool VisitImplicit;
   };
   AutoSetContext *CurDeclContext;
@@ -713,15 +732,19 @@ public:
     return Super::TraverseEnumDecl(D);
   }
   bool TraverseRecordDecl(RecordDecl *D) {
-    AutoSetContext Asc(this, D);
+    AutoSetContext Asc(this, D, UseDecl_Field);
     return Super::TraverseRecordDecl(D);
   }
+  bool TraverseCXXBaseSpecifier(const CXXBaseSpecifier &Base) {
+    AutoSetContext Asc(this, CurDeclContext ? CurDeclContext->Decl : nullptr, UseDecl_BaseSpecifier);
+    return Super::TraverseCXXBaseSpecifier(Base);
+  }
   bool TraverseCXXRecordDecl(CXXRecordDecl *D) {
-    AutoSetContext Asc(this, D);
+    AutoSetContext Asc(this, D, UseDecl_Field);
     return Super::TraverseCXXRecordDecl(D);
   }
   bool TraverseFunctionDecl(FunctionDecl *D) {
-    AutoSetContext Asc(this, D);
+    AutoSetContext Asc(this, D, UseDecl_Signature);
     const FunctionDecl *Def;
     // (See the larger AutoTemplateContext comment for more information.) If a
     // method on a templated class is declared out-of-line, we need to analyze
@@ -733,7 +756,7 @@ public:
     return Super::TraverseFunctionDecl(D);
   }
   bool TraverseCXXMethodDecl(CXXMethodDecl *D) {
-    AutoSetContext Asc(this, D);
+    AutoSetContext Asc(this, D, UseDecl_Signature);
     const FunctionDecl *Def;
     // See TraverseFunctionDecl.
     if (TemplateStack && D->isDefined(Def) && Def && D != Def) {
@@ -742,7 +765,7 @@ public:
     return Super::TraverseCXXMethodDecl(D);
   }
   bool TraverseCXXConstructorDecl(CXXConstructorDecl *D) {
-    AutoSetContext Asc(this, D, /*VisitImplicit=*/true);
+    AutoSetContext Asc(this, D, UseDecl_Signature, /*VisitImplicit=*/true);
     const FunctionDecl *Def;
     // See TraverseFunctionDecl.
     if (TemplateStack && D->isDefined(Def) && Def && D != Def) {
@@ -760,7 +783,7 @@ public:
     return Super::TraverseCXXConversionDecl(D);
   }
   bool TraverseCXXDestructorDecl(CXXDestructorDecl *D) {
-    AutoSetContext Asc(this, D);
+    AutoSetContext Asc(this, D, UseDecl_Signature);
     const FunctionDecl *Def;
     // See TraverseFunctionDecl.
     if (TemplateStack && D->isDefined(Def) && Def && D != Def) {
@@ -1020,8 +1043,52 @@ public:
     // should be respected. If this flag is not set, the visitIdentifier
     // function should use only the start of the SourceRange and auto-detect
     // the end based on whatever token is found at the start.
-    LocRangeEndValid = 1 << 2
+    LocRangeEndValid = 1 << 2,
+
+    // ## Hacky prototype for tracking details of a use
+    // Expr::isLValue() returned true
+    UseExpr_LValue = 1 << 3,
+    // Expr::isLValue() returned false, implying isPRValue() || Expr::isXValue()
+    // (This gets to be a flag in addition to UseExpr_LValue because we don't
+    // otherwise indicate when a use is in an expression right now.)
+    UseExpr_RValue = 1 << 4,
+
+    // The use is part of a field declaration
+    UseDecl_Field = 1 << 5,
+    // The use is part of a local declaration
+    UseDecl_Local = 1 << 6,
+    // The use is part of a function signature
+    UseDecl_Signature = 1 << 7,
+    // The use is part of a base class reference
+    UseDecl_BaseSpecifier = 1 << 8,
   };
+
+  const int USE_FLAGS = UseExpr_LValue | UseExpr_RValue |
+                        UseDecl_Field | UseDecl_Local | UseDecl_Signature |
+                        UseDecl_BaseSpecifier;
+
+  int computeExprFlags(Expr *E) {
+    int Flags = 0;
+    if (!E) {
+      return Flags;
+    }
+    if (E->isLValue()) {
+      Flags |= UseExpr_LValue;
+    } else {
+      Flags |= UseExpr_RValue;
+    }
+    return Flags;
+  }
+
+  // Attempt to set hacky use flags based on the CurDeclContext that should tell
+  // us what the closest decl is.  Right now AutoSetContext takes this as an
+  // argument
+  int computeCurDeclFlags() {
+    if (CurDeclContext) {
+      return CurDeclContext->Flags;
+    }
+    return 0;
+  }
 
   void emitStructuredInfo(SourceLocation Loc, const RecordDecl *decl) {
     std::string json_str;
@@ -1368,6 +1435,24 @@ public:
       J.attribute("kind", Kind);
       J.attribute("pretty", QualName.data());
       J.attribute("sym", Symbol);
+      if (Flags & USE_FLAGS) {
+        std::string uses;
+        // currently the flags are mutually exclusive, but I'm not sure that
+        // will always be the case.
+        if (Flags & UseExpr_LValue) {
+          J.attribute("usage", "lhs");
+        } else if (Flags & UseExpr_RValue) {
+          J.attribute("usage", "rhs");
+        } else if (Flags & UseDecl_Field) {
+          J.attribute("usage", "field");
+        } else if (Flags & UseDecl_Local) {
+          J.attribute("usage", "local");
+        } else if (Flags & UseDecl_Signature) {
+          J.attribute("usage", "signature");
+        } else if (Flags & UseDecl_BaseSpecifier) {
+          J.attribute("usage", "superclass");
+        }
+      }
       if (!TokenContext.Name.empty()) {
         J.attribute("context", TokenContext.Name);
       }
@@ -1839,7 +1924,7 @@ public:
     TagDecl *Decl = L.getDecl();
     std::string Mangled = getMangledName(CurMangleContext, Decl);
     visitIdentifier("use", "type", getQualifiedName(Decl), Loc, Mangled,
-                    L.getType(), getContext(Loc));
+                    L.getType(), getContext(Loc), computeCurDeclFlags());
     return true;
   }
 
@@ -1908,9 +1993,9 @@ public:
 
     NamedDecl *Decl = E->getDecl();
     if (const VarDecl *D2 = dyn_cast<VarDecl>(Decl)) {
-      int Flags = 0;
+      int Flags = computeExprFlags(E);
       if (D2->isLocalVarDeclOrParm()) {
-        Flags = NoCrossref;
+        Flags |= NoCrossref;
       }
       std::string Mangled = getMangledName(CurMangleContext, Decl);
       visitIdentifier("use", "variable", getQualifiedName(Decl), Loc, Mangled,

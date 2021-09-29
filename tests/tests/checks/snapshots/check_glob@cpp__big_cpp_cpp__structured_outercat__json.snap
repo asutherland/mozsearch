@@ -10,7 +10,7 @@ expression: "&json_results"
     "pretty": "outerNS::OuterCat",
     "sym": "T_outerNS::OuterCat",
     "kind": "class",
-    "sizeBytes": 16,
+    "sizeBytes": 24,
     "supers": [
       {
         "pretty": "outerNS::Thing",
@@ -122,6 +122,13 @@ expression: "&json_results"
         "type": "_Bool",
         "offsetBytes": 14,
         "sizeBytes": 1
+      },
+      {
+        "pretty": "outerNS::OuterCat::mCurrentToy",
+        "sym": "F_<T_outerNS::OuterCat>_mCurrentToy",
+        "type": "class outerNS::Thing *",
+        "offsetBytes": 16,
+        "sizeBytes": 8
       }
     ]
   }

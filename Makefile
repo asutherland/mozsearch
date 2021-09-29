@@ -35,6 +35,9 @@ check-test-repo:
 	/vagrant/infrastructure/web-server-check.sh /vagrant/tests ~/index "http://localhost/"
 
 # Target that:
+# - Kicks off the web-server to make sure it's running.  This is necessary
+#   because `build-test-repo` may have failed with an error because of indexer
+#   changes which happen before the web-server starts.
 # - Runs the check script in a special mode that lets the tests run without
 #   failing, instead generating the revised expectations for anything that has
 #   changed.
@@ -49,6 +52,8 @@ check-test-repo:
 #
 # Depends on `cargo install cargo-insta`.
 review-test-repo:
+	/vagrant/infrastructure/web-server-setup.sh /vagrant/tests config.json ~/index ~
+	/vagrant/infrastructure/web-server-run.sh /vagrant/tests ~/index ~ WAIT
 	INSTA_FORCE_PASS=1 /vagrant/infrastructure/web-server-check.sh /vagrant/tests ~/index "http://localhost/"
 	cargo insta review --workspace-root=/vagrant/tests/
 

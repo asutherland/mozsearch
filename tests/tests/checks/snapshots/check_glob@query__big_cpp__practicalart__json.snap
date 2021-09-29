@@ -17,7 +17,7 @@ expression: "&jv.value"
             "context": "",
             "contextsym": "",
             "line": "class PracticalArt : public AbstractArt {",
-            "lno": 427,
+            "lno": 430,
             "peekLines": "class PracticalArt : public AbstractArt {\n"
           }
         ]
@@ -35,7 +35,7 @@ expression: "&jv.value"
             "context": "",
             "contextsym": "",
             "line": "class AbstractArt : public Thing {",
-            "lno": 417,
+            "lno": 420,
             "peekLines": "class AbstractArt : public Thing {\n",
             "upsearch": "symbol:T_outerNS::AbstractArt"
           }

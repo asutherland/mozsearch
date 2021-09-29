@@ -235,6 +235,8 @@ class OuterCat : Thing {
   bool mIsFriendly;
   bool mIsSecretlyUnfriendly;
 
+  Thing *mCurrentToy;
+
   public:
   // These things can be known.
   // But they are methods.
@@ -257,6 +259,7 @@ class OuterCat : Thing {
     // hm hm hm.
   : Thing(9 * HUMAN_HP)
   , mIsFriendly(beFriendly)
+  , mCurrentToy(nullptr)
   // Unknown.
   // ...
   // Okay, we can probably implement things now.

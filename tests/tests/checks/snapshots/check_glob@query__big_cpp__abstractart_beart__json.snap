@@ -17,7 +17,7 @@ expression: "&jv.value"
             "context": "outerNS::AbstractArt",
             "contextsym": "T_outerNS::AbstractArt",
             "line": "virtual void beArt() = 0;",
-            "lno": 424,
+            "lno": 427,
             "peekLines": "// This pure virtual method needs to be treated like a definition for our\n// structured record emission purposes.\nvirtual void beArt() = 0;\n"
           }
         ]
@@ -35,7 +35,7 @@ expression: "&jv.value"
             "context": "outerNS::PracticalArt",
             "contextsym": "T_outerNS::PracticalArt",
             "line": "void beArt() override {",
-            "lno": 433,
+            "lno": 436,
             "peekLines": "// This should properly see the beArt as something it's overriding.\nvoid beArt() override {\n",
             "upsearch": "symbol:_ZN7outerNS12PracticalArt5beArtEv"
           }
