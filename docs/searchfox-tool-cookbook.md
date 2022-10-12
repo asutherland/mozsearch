@@ -117,6 +117,10 @@ searchfox-tool 'query "new xmlhttpreques" | query --diff --normalize --dictify "
 RUST_LOG=trace ./searchfox-tool '--server=/home/vagrant/index/config.json --tree=tests search-text searchfox'
 ```
 
+```
+~/mozsearch/tools/target/release/searchfox-tool '--server=/home/ubuntu/index/config.json
+--tree=mozilla-central search-text nsidomwindowutils'
+```
 
 ### Graphing Test Server contents
 

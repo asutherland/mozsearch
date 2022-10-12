@@ -280,20 +280,18 @@ fn main() {
             });
         };
 
-        if !path.contains("__GENERATED__") {
-            if let Some((product, component)) = concise_info.bugzilla_component {
-                source_panel_items.push(PanelItem {
-                    title: format!("File a bug in {} :: {}", product, component),
-                    link: format!(
-                        "https://bugzilla.mozilla.org/enter_bug.cgi?product={}&component={}",
-                        product.replace("&", "%26"),
-                        component.replace("&", "%26")
-                    ),
-                    update_link_lineno: "",
-                    accel_key: None,
-                    copyable: true,
-                });
-            }
+        if let Some((product, component)) = concise_info.bugzilla_component {
+            source_panel_items.push(PanelItem {
+                title: format!("File a bug in {} :: {}", product, component),
+                link: format!(
+                    "https://bugzilla.mozilla.org/enter_bug.cgi?product={}&component={}",
+                    product.replace("&", "%26"),
+                    component.replace("&", "%26")
+                ),
+                update_link_lineno: "",
+                accel_key: None,
+                copyable: true,
+            });
         }
 
         if !source_panel_items.is_empty() {

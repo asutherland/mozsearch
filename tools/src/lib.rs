@@ -8,6 +8,7 @@ extern crate include_dir;
 #[macro_use]
 extern crate itertools;
 extern crate linkify;
+extern crate lz4_flex;
 extern crate regex;
 extern crate lexical_sort;
 extern crate liquid;

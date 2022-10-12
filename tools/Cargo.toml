@@ -11,6 +11,7 @@ tonic-build = "0.7.1"
 async-stream = "0.3.2"
 async-trait = "0.1.50"
 axum = "0.5.3"
+byteorder = "1.4.3"
 chrono = "0.2"
 clap = { version = "3.0", features = ["cargo", "derive", "env"] }
 cssparser = "0.29"
@@ -38,6 +39,7 @@ liquid = "0.26.0"
 liquid-core = "0.26.0"
 log = "0.4.0"
 lol_html = "0.3.1"
+lz4_flex = { version = "0.9.5", default-features = false, features = ["checked-decode", "std"] }
 memmap = { package = "memmap2", version = "0.5.3" }
 num_cpus = "1"
 petgraph = "0.6.0"

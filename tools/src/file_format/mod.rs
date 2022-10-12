@@ -1,5 +1,6 @@
 pub mod analysis;
 pub mod analysis_manglings;
+pub mod chunked_line_files;
 pub mod config;
 pub mod coverage;
 pub mod crossref_lookup;
