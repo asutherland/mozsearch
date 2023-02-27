@@ -5,10 +5,13 @@ IMAGE_NAME=${SEARCHFOX_DOCKER_IMAGE_NAME:-searchfox}
 CONTAINER_NAME=${SEARCHFOX_DOCKER_CONTAINER_NAME:-searchfox}
 VOLUME_NAME=${SEARCHFOX_DOCKER_VOLUME_NAME:-searchfox-vol}
 
+LIVEGREP_REV=$(git submodule status deps/livegrep | awk '{print $1}')
+
 docker build \
     -t ${IMAGE_NAME} \
     --build-arg LOCAL_UID=$(id -u $USER) \
     --build-arg LOCAL_GID=$(id -g $USER) \
+    --build-arg LIVEGREP_REV=${LIVEGREP_REV} \
     infrastructure/
 
 ## Clean up any existing container and affiliated volumes

@@ -125,10 +125,13 @@ if [ ! -d $HOME/.cargo ]; then
   rustup uninstall stable
 fi
 
-# Install codesearch.
+# Install codesearch.  This previously used a pegged branch but
 if [ ! -d livegrep ]; then
-  git clone -b mozsearch-version6 https://github.com/mozsearch/livegrep
+  git clone https://github.com/livegrep/livegrep
   pushd livegrep
+    if [[ ${LIVEGREP_REV:-} ]]; then
+      git checkout ${LIVEGREP_REV}
+    fi
     $BAZEL build //src/tools:codesearch
     sudo install bazel-bin/src/tools/codesearch /usr/local/bin
   popd

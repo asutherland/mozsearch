@@ -2,6 +2,7 @@
 FROM ubuntu:22.04
 ARG LOCAL_UID
 ARG LOCAL_GID
+ARG LIVEGREP_REV
 
 COPY *.sh /infrastructure/
 # this will create our user "vagrant"
@@ -9,7 +10,7 @@ RUN /infrastructure/docker-provision.sh $LOCAL_UID $LOCAL_GID
 USER vagrant
 WORKDIR /home/vagrant
 
-RUN /infrastructure/common-provision-pre.sh
+RUN /infrastructure/common-provision-pre.sh $LIVEGREP_REV
 
 # common-provision-pre.sh installed cargo, make sure the path is available for
 # the next commands
