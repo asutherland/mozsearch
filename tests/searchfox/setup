@@ -23,6 +23,7 @@ mkdir -p $HISTORY_ROOT/timeline
 git init $HISTORY_ROOT/timeline
 mkdir -p $HISTORY_ROOT/rev-summaries
 $MOZSEARCH_PATH/tools/target/release/build-syntax-token-tree $GIT_ROOT $HISTORY_ROOT/syntax
+$MOZSEARCH_PATH/tools/target/release/build-timeline-tree $GIT_ROOT $HISTORY_ROOT/syntax $GIT_ROOT $HISTORY_ROOT/timeline $GIT_ROOT $HISTORY_ROOT/rev-summaries
 
 
 # Link over the fake metadata and test file information as well.
