@@ -3217,6 +3217,7 @@ dependencies = [
  "tree-sitter-python",
  "tree-sitter-rust",
  "tree-sitter-typescript",
+ "tree-sitter-yaml",
  "url 2.5.0",
  "urlencoding",
  "ustr",
@@ -3382,9 +3383,9 @@ source = "git+https://github.com/philip-peterson/destructure_traitobject?rev=d49
 
 [[package]]
 name = "tree-sitter"
-version = "0.20.9"
+version = "0.20.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4423c784fe11398ca91e505cdc71356b07b1a924fc8735cfab5333afe3e18bc"
+checksum = "e747b1f9b7b931ed39a548c1fae149101497de3c1fc8d9e18c62c1a66c683d3d"
 dependencies = [
  "cc",
  "regex 1.10.3",
@@ -3422,8 +3423,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-mozcpp"
 version = "0.20.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9514ebbde0a575c43027fffa2702788ae7fb967be5e1a43daae92667400d13e"
+source = "git+https://github.com/asutherland/rust-code-analysis.git?rev=e7ff0967eb7bf2d670afd2f3f86603cec4d11322#e7ff0967eb7bf2d670afd2f3f86603cec4d11322"
 dependencies = [
  "cc",
  "tree-sitter",
@@ -3455,6 +3455,16 @@ name = "tree-sitter-typescript"
 version = "0.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a75049f0aafabb2aac205d7bb24da162b53dcd0cfb326785f25a2f32efa8071a"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-yaml"
+version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "324767d0ad6bc588467aa4b98f6f5cd6eda64ece1eae568f8fcf5b899bcf0fe9"
 dependencies = [
  "cc",
  "tree-sitter",

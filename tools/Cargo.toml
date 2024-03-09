@@ -59,13 +59,22 @@ serde_json = { version = "1.0.113", features = ["preserve_order"] }
 serde_repr = "0.1.18"
 tokio = { version = "1.6.0", features = ["rt-multi-thread", "net", "macros", "fs", "io-util", "signal"] }
 tokio-stream = "0.1.8"
-tree-sitter = "0.20.9"
-tree-sitter-mozcpp = "0.20.2"
+# tree-sitter-rust had ended up on 0.21 in our cargo.lock which caused problems;
+# I've ratcheted it down for now and set everything to 0.20.10 for now but it's
+# not clear we need this and it could be possible to rev everything upwards to
+# 0.21 in a different commit.
+tree-sitter = "=0.20.10"
+# tree-sitter-mozcpp had an "=" dep on tree-sitter "0.20.9" which caused problems; I've forked the
+# repo for that reason.  I'm using a revision because the repo had submodules in it and for some
+# reason cargo really seemed to want to check them out when I used a branch name even though I had
+# removed the submodules on the branch; this is just a revision from that branch.
+tree-sitter-mozcpp = { git = "https://github.com/asutherland/rust-code-analysis.git", rev = "e7ff0967eb7bf2d670afd2f3f86603cec4d11322" }
 tree-sitter-python = "0.20.2"
 tree-sitter-rust = "0.20.3"
 tree-sitter-typescript = "0.20.2"
 tree-sitter-java = "0.20.2"
 tree-sitter-kotlin = { git = "https://github.com/fwcd/tree-sitter-kotlin.git" }
+tree-sitter-yaml = "0.0.1"
 toml = "0.7.3"
 tonic = "0.7.1"
 tracing = "0.1.37"
