@@ -118,6 +118,13 @@ pub fn hypertokenize_source_file(
             let query = load_language_queries(tree_sitter_rust::language(), "rust")?;
             ("rust", query, vec![], vec![])
         }
+        "yaml" => {
+            parser
+                .set_language(tree_sitter_yaml::language())
+                .expect("Error loading yaml grammar");
+            let query = load_language_queries(tree_sitter_rust::language(), "rust")?;
+            ("yaml", query, vec![], vec![])
+        }
         // Explicitly skip things we know are binary; this list copied from "langauages.rs"
         "ogg" | "ttf" | "xpi" | "png" | "bcmap" | "gif" | "ogv" | "jpg" | "jpeg" | "bmp"
         | "icns" | "ico" | "mp4" | "sqlite" | "jar" | "webm" | "webp" | "woff" | "class"

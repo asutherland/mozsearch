@@ -1,0 +1,5 @@
+universe = "prefs"
+format = "yaml"
+
+[doc.seq.block.litmap."name".defval.binding.impl]
+pretty.liquid = "mozilla::StaticPrefs::{{ value | replace: '.', '_' }}"

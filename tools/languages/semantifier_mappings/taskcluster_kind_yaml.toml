@@ -1,0 +1,44 @@
+universe = "taskcluster"
+format = "yaml"
+
+# if we see using: mozharness, then call that template in our stead.
+[[templates."run".decision.conditions]]
+key = "using"
+value = "mozharness"
+template = "run-mozharness"
+# if we see a toolchain-alias, use that
+[[templates."run".decision.conditions]]
+key = "toolchain-alias"
+template = "toolchain-alias"
+
+[templates."run-mozharness".map.specific."config".flatten.fileref]
+path.liquid = "testing/mozharness/configs/{{ value }}"
+
+[templates."run-mozharness".map.specific."script".flatten.fileref]
+path.liquid = "testing/{{ value }}"
+
+[templates."toolchain-alias".flatten.def]
+namespace = "toolchain"
+
+# kind-dependencies is a sequence of references to "taskcluster/ci/VALUE/kind.yml".
+[doc.map.specific."kind-dependencies".seq.fileref]
+path.liquid = "taskcluster/ci/{{ value }}/kind.yml"
+
+## Jobs
+# the keys of top-level "jobs" are job definitions
+[doc.map.specific."jobs".keys.def]
+namespace = "jobs"
+
+# these reference workers defined in the root config.yml
+[doc.map.specific."jobs".values.map.specific."worker-type".use]
+namespace = "workers"
+
+[doc.map.specific."jobs".values.map.specific."run"]
+template = "run"
+
+# XXX this specific could be converted into having the keys potentially push a
+# scope that could then be evaluated.
+[doc.map.specific."jobs".values.map.specific."fetches".map.specific."fetch".flatten.use]
+namespace = "fetch"
+[doc.map.specific."jobs".values.map.specific."fetches".map.specific."toolchain".flatten.use]
+namespace = "toolchain"

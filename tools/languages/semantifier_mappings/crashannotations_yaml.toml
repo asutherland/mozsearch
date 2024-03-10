@@ -1,0 +1,8 @@
+universe = "crashannotations"
+format = "yaml"
+
+# The doc is just a big map where the keys are the crash annotation names, and
+# which we treat as a structured definition which lets us bind to the resulting
+# C++ symbol.
+[doc.map.key.def.binding.impl]
+pretty.liquid = "CrashReporter::Annotation::{{ value | replace: '.', '_' }}"
