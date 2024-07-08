@@ -68,12 +68,13 @@ find . -name '*.cpp' | \
   grep -v /field-layout/
 )
 
+mkdir -p /tmp/dataflow
 ## C++ Build Stuff
 for f in $CPP_FILES
 do
   OBJ_FILE=$OBJDIR/${f%%.cpp}.o
   mkdir -p $(dirname $OBJ_FILE)
-  $CXX -DTEST_MACRO1 -DTEST_MACRO2 $f -std=c++17 -I . -I $OBJDIR -c -o $OBJ_FILE -Wall
+  $CXX --analyze -Xanalyzer -analyzer-dump-egraph -DTEST_MACRO1 -DTEST_MACRO2 $f -std=c++17 -I . -I $OBJDIR -c -o $OBJ_FILE -Wall
 done
 
 ## Pseudo per-platform build

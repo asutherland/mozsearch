@@ -19,6 +19,10 @@
 #include "clang/Lex/Lexer.h"
 #include "clang/Lex/PPCallbacks.h"
 #include "clang/Lex/Preprocessor.h"
+#include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
+#include "clang/StaticAnalyzer/Core/Checker.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/ExplodedGraph.h"
+#include "clang/StaticAnalyzer/Frontend/CheckerRegistry.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/raw_ostream.h"
@@ -2525,3 +2529,101 @@ protected:
 
 static FrontendPluginRegistry::Add<IndexAction>
     Y("mozsearch-index", "create the mozsearch index database");
+
+
+class MozsearchCheckerPass : public MozsearchCommonAnalysis {
+public:
+  MozsearchCheckerPass(SourceManager &SM, LangOptions &LO) :
+    MozsearchCommonAnalysis(SO, LO) {}
+
+  void processExplodedGraph(clang::ento::ExplodedGraph &G,
+                            clang::ento::BugReporter &B,
+                            clang::ento::ExprEngine &Eng);
+};
+
+void
+MozsearchCheckerPass::processExplodedGraph(clang::ento::ExplodedGraph &G,
+                                           clang::ento::BugReporter &B,
+                                           clang::ento::ExprEngine &Eng) {
+  AnalysisManager &AM = Eng.getAnalysisManager();
+
+  const CFG *C = nullptr;
+  const SourceManager &SM = B.getSourceManager();
+  llvm::SmallPtrSet<const CFGBlock*, 32> reachable;
+
+  // This gets invoked once a function is fully analyzed; there should be a
+  // single root absent other checkers doing weird things.  Other checkers that
+  // use this analysis constrain their traversal to only stay in this root
+  // function, but potentially interesting things happen in the functions this
+  // function calls and which end up inlined.
+  //
+  // To start we are only going to process this top-level function, but there is
+  // potentially really interesting information to be gained by processing the
+  // inlined functions which potentially have significantly more state.
+  const ExplodedNode *GraphRoot = *G.roots_begin();
+  const LocationContext *RootLC = GraphRoot->getLocation().getLocationContext();
+  const Decl *RootD = RootLC->getDecl();
+
+  // We're now omnisciently walking the graph as we walk all its nodes.
+  for (const ExplodedNode &N : G.nodes()) {
+    const ProgramPoint &P = N.getLocation();
+
+    // (As per above, don't bother considering inlined nodes yet.)
+    if (RootD != P.getLocationContext()->getDecl())
+      continue;
+
+    if (std::optional<BlockEntrance> BE = P.getAs<BlockEntrance>()) {
+      const CFGBlock *CB = BE->getBlock();
+      reachable.insert(CB);
+    }
+  }
+
+  for (clang::ento::ExplodedGraph::node_iterator I = G.nodes_begin();
+       I != G.nodes_end(); ++I) {
+    const clang::ProgramPoint &P = I->getLocation();
+    const clang::LocationContext *LC = P.getLocationContext();
+    const clang::Decl *D = LC->getAnalysisDeclContext()->getDecl();
+
+    // Until this starts working for simple cases, punt on templates for sure.
+    if (const clang::FunctionDecl *FD = llvm::dyn_cast<clang::FunctionDecl>(D)) {
+      if (FD->isTemplateInstantiation()) {
+        continue;
+      }
+    }
+
+    if (llvm::Optional<clang::BlockEntrance> BE =
+            P.getAs<clang::BlockEntrance>()) {
+      const clang::CFGBlock *CB = BE->getBlock();
+      Reachable[LC].insert(CB->getBlockID());
+    }
+  }
+}
+
+class MozsearchChecker
+    : public clang::ento::Checker<clang::ento::check::EndAnalysis> {
+public:
+  void reportBug(clang::ento::BugReporter &C, clang::SourceLocation Loc) const;
+
+  void checkEndAnalysis(clang::ento::ExplodedGraph &G,
+                        clang::ento::BugReporter &B,
+                        clang::ento::ExprEngine &Eng) const;
+}
+
+void
+MozsearchChecker::checkEndAnalysis(clang::ento::ExplodedGraph &G,
+                                   clang::ento::BugReporter &B,
+                                   clang::ento::ExprEngine &Eng) const {
+  AnalysisManager &AM = Eng.getAnalysisManager();
+  MozsearchCheckerPass cp(AM.getSourceManager(), AM.getLangOpts());
+  cp.processExplodedGraph(G, B, Eng);
+}
+
+
+extern "C" void clang_registerCheckers(clang::ento::CheckerRegistry &registry) {
+    registry.addChecker<MozsearchChecker>(
+      "mozsearch.ExportDflow",
+      "Export dflow information.",
+      "no docs");
+}
+
+extern "C" const char clang_analyzerAPIVersionString[] = CLANG_ANALYZER_API_VERSION_STRING;
