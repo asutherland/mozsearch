@@ -237,37 +237,17 @@ public:
                       const MacroDefinition &Md) override;
 };
 
-class IndexConsumer : public ASTConsumer,
-                      public RecursiveASTVisitor<IndexConsumer>,
-                      public DiagnosticConsumer {
-private:
-  CompilerInstance &CI;
+/**
+ * Logic shared between the AST plugin `IndexConsumer` and Clang Static Analyzer
+ * Checker.
+ */
+class MozsearchCommonAnalysis {
+protected:
   SourceManager &SM;
   LangOptions &LO;
   std::map<FileID, std::unique_ptr<FileInfo>> FileMap;
-  MangleContext *CurMangleContext;
-  ASTContext *AstContext;
-  std::unique_ptr<clangd::HeuristicResolver> Resolver;
 
-  typedef RecursiveASTVisitor<IndexConsumer> Super;
-
-  // Tracks the set of declarations that the current expression/statement is
-  // nested inside of.
-  struct AutoSetContext {
-    AutoSetContext(IndexConsumer *Self, NamedDecl *Context, bool VisitImplicit = false)
-        : Self(Self), Prev(Self->CurDeclContext), Decl(Context) {
-      this->VisitImplicit = VisitImplicit || (Prev ? Prev->VisitImplicit : false);
-      Self->CurDeclContext = this;
-    }
-
-    ~AutoSetContext() { Self->CurDeclContext = Prev; }
-
-    IndexConsumer *Self;
-    AutoSetContext *Prev;
-    NamedDecl *Decl;
-    bool VisitImplicit;
-  };
-  AutoSetContext *CurDeclContext;
+  MozsearchCommonAnalysis(SourceManager &SM, LangOptions &LO) : SM(SM), LO(LO) {}
 
   FileInfo *getFileInfo(SourceLocation Loc) {
     FileID Id = SM.getFileID(Loc);
@@ -432,7 +412,7 @@ private:
           llvm::raw_string_ostream Stream(Backing);
           const TemplateArgumentList &TemplateArgs = Spec->getTemplateArgs();
           printTemplateArgumentList(
-              Stream, TemplateArgs.asArray(), PrintingPolicy(CI.getLangOpts()));
+              Stream, TemplateArgs.asArray(), PrintingPolicy(LO));
           Result += Stream.str();
         }
       } else if (const auto *Nd = dyn_cast<NamespaceDecl>(DC)) {
@@ -641,45 +621,7 @@ private:
     debugLocation(Range.getEnd());
   }
 
-public:
-  IndexConsumer(CompilerInstance &CI)
-      : CI(CI), SM(CI.getSourceManager()), LO(CI.getLangOpts()), CurMangleContext(nullptr),
-        AstContext(nullptr), CurDeclContext(nullptr), TemplateStack(nullptr) {
-    CI.getPreprocessor().addPPCallbacks(
-        make_unique<PreprocessorHook>(this));
-  }
-
-  virtual DiagnosticConsumer *clone(DiagnosticsEngine &Diags) const {
-    return new IndexConsumer(CI);
-  }
-
-#if !defined(_WIN32) && !defined(_WIN64)
-  struct AutoTime {
-    AutoTime(double *Counter) : Counter(Counter), Start(time()) {}
-    ~AutoTime() {
-      if (Start) {
-        *Counter += time() - Start;
-      }
-    }
-    void stop() {
-      *Counter += time() - Start;
-      Start = 0;
-    }
-    double *Counter;
-    double Start;
-  };
-#endif
-
-  // All we need is to follow the final declaration.
-  virtual void HandleTranslationUnit(ASTContext &Ctx) {
-    CurMangleContext =
-      clang::ItaniumMangleContext::create(Ctx, CI.getDiagnostics());
-
-    AstContext = &Ctx;
-    Resolver = std::make_unique<clangd::HeuristicResolver>(Ctx);
-    TraverseDecl(Ctx.getTranslationUnitDecl());
-
-    // Emit the JSON data for all files now.
+  void FlushFileDataToDisk() {
     std::map<FileID, std::unique_ptr<FileInfo>>::iterator It;
     for (It = FileMap.begin(); It != FileMap.end(); It++) {
       if (!It->second->Interesting) {
@@ -787,6 +729,79 @@ public:
         exit(1);
       }
     }
+  }
+};
+
+class IndexConsumer : public ASTConsumer,
+                      public RecursiveASTVisitor<IndexConsumer>,
+                      public DiagnosticConsumer,
+                      public MozsearchCommonAnalysis {
+private:
+  CompilerInstance &CI;
+  MangleContext *CurMangleContext;
+  ASTContext *AstContext;
+  std::unique_ptr<clangd::HeuristicResolver> Resolver;
+
+  typedef RecursiveASTVisitor<IndexConsumer> Super;
+
+  // Tracks the set of declarations that the current expression/statement is
+  // nested inside of.
+  struct AutoSetContext {
+    AutoSetContext(IndexConsumer *Self, NamedDecl *Context, bool VisitImplicit = false)
+        : Self(Self), Prev(Self->CurDeclContext), Decl(Context) {
+      this->VisitImplicit = VisitImplicit || (Prev ? Prev->VisitImplicit : false);
+      Self->CurDeclContext = this;
+    }
+
+    ~AutoSetContext() { Self->CurDeclContext = Prev; }
+
+    IndexConsumer *Self;
+    AutoSetContext *Prev;
+    NamedDecl *Decl;
+    bool VisitImplicit;
+  };
+  AutoSetContext *CurDeclContext;
+
+public:
+  IndexConsumer(CompilerInstance &CI)
+      : MozsearchCommonAnalysis(CI.getSourceManager(), CI.getLangOpts()), CI(CI), CurMangleContext(nullptr),
+        AstContext(nullptr), CurDeclContext(nullptr), TemplateStack(nullptr) {
+    CI.getPreprocessor().addPPCallbacks(
+        make_unique<PreprocessorHook>(this));
+  }
+
+  virtual DiagnosticConsumer *clone(DiagnosticsEngine &Diags) const {
+    return new IndexConsumer(CI);
+  }
+
+#if !defined(_WIN32) && !defined(_WIN64)
+  struct AutoTime {
+    AutoTime(double *Counter) : Counter(Counter), Start(time()) {}
+    ~AutoTime() {
+      if (Start) {
+        *Counter += time() - Start;
+      }
+    }
+    void stop() {
+      *Counter += time() - Start;
+      Start = 0;
+    }
+    double *Counter;
+    double Start;
+  };
+#endif
+
+  // All we need is to follow the final declaration.
+  virtual void HandleTranslationUnit(ASTContext &Ctx) {
+    CurMangleContext =
+      clang::ItaniumMangleContext::create(Ctx, CI.getDiagnostics());
+
+    AstContext = &Ctx;
+    Resolver = std::make_unique<clangd::HeuristicResolver>(Ctx);
+    TraverseDecl(Ctx.getTranslationUnitDecl());
+
+    // Emit the JSON data for all files now.
+    FlushFileDataToDisk();
   }
 
   // Unfortunately, we have to override all these methods in order to track the
