@@ -410,8 +410,12 @@ var ContextMenu = new (class ContextMenu extends ContextMenuBase {
         symbols = [];
 
         // We just want a pretty, so let's just use the first symbol of each.
-        let srcSymInfo = SYM_INFO[srcSyms[0]];
-        let targSymInfo = SYM_INFO[targSyms[0]];
+        //
+        // For class tables, this will look like "<class-sym>:<method-sym>" so
+        // we want to use split and at to normalize so that if there is any ":"
+        // delimiters, we only want the last symbol in the list.
+        let srcSymInfo = SYM_INFO[srcSyms[0].split(":").at(-1)];
+        let targSymInfo = SYM_INFO[targSyms[0].split(":").at(-1)];
 
         // Generate a "go to use"
         const edgeExtra = GRAPH_EXTRA[0].edges[symbolToken.id];
