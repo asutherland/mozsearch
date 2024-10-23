@@ -1,6 +1,9 @@
 [term.C]
 alias = "context"
 
+[term.ds]
+alias = "diagram-search"
+
 # For graphing we need to build the pipeline through the traverse call but we
 # have the "graph-symbols" group automatically add the graphing steps.
 [term.calls-to]
@@ -78,6 +81,27 @@ args.exact-match = true
 [[term.calls-from.group.graph-traverse]]
 command = "traverse"
 args.edge = "callees"
+
+
+# Experimental query to show part of what the default query search could be doing
+# in terms of providing context for the results that are displayed.  This is
+# basically just `calls-to:QUERY depth:1 hier:file` but where we relax the exact
+# match behavior for QUERY in the search-identifiers/crossref-lookup pipeline
+# stages which means we're getting calls-to for every identifier that matches at
+# all.
+[term.diagram-search]
+[[term.diagram-search.group.graph-symbols-default]]
+command = "search-identifiers"
+args.positional = "$0"
+[[term.diagram-search.group.graph-symbols-default]]
+command = "crossref-lookup"
+[[term.diagram-search.group.graph-traverse]]
+command = "traverse"
+args.edge = "uses"
+args.max-depth = "1"
+[[term.diagram-search.group.graph-render]]
+command = "graph"
+args.hier = "file"
 
 
 # "inheritance-diagram" is a quick hack to show the full transitive overrides/
