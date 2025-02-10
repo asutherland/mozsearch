@@ -1,0 +1,216 @@
+---
+source: tests/test_check_insta.rs
+expression: "&json_results"
+---
+[
+  {
+    "loc": "00021:6-23",
+    "structured": 1,
+    "pretty": "FunAnnotatedClass",
+    "sym": "T_FunAnnotatedClass",
+    "kind": "class",
+    "sizeBytes": 88,
+    "alignmentBytes": 8,
+    "supers": [],
+    "methods": [
+      {
+        "pretty": "FunAnnotatedClass::singleLockedFunc",
+        "sym": "_ZN17FunAnnotatedClass16singleLockedFuncEv",
+        "props": [
+          "instance",
+          "user"
+        ]
+      },
+      {
+        "pretty": "FunAnnotatedClass::doubleLockedFunc",
+        "sym": "_ZN17FunAnnotatedClass16doubleLockedFuncEv",
+        "props": [
+          "instance",
+          "user"
+        ]
+      },
+      {
+        "pretty": "FunAnnotatedClass::FunAnnotatedClass",
+        "sym": "_ZN17FunAnnotatedClassC1ERKS_",
+        "props": [
+          "instance",
+          "defaulted",
+          "deleted"
+        ]
+      },
+      {
+        "pretty": "FunAnnotatedClass::FunAnnotatedClass",
+        "sym": "_ZN17FunAnnotatedClassC1EOS_",
+        "props": [
+          "instance",
+          "defaulted",
+          "deleted"
+        ]
+      },
+      {
+        "pretty": "FunAnnotatedClass::operator=",
+        "sym": "_ZN17FunAnnotatedClassaSERKS_",
+        "props": [
+          "instance",
+          "defaulted",
+          "deleted"
+        ]
+      },
+      {
+        "pretty": "FunAnnotatedClass::operator=",
+        "sym": "_ZN17FunAnnotatedClassaSEOS_",
+        "props": [
+          "instance",
+          "defaulted",
+          "deleted"
+        ]
+      },
+      {
+        "pretty": "FunAnnotatedClass::~FunAnnotatedClass",
+        "sym": "_ZN17FunAnnotatedClassD1Ev",
+        "props": [
+          "instance",
+          "defaulted"
+        ]
+      }
+    ],
+    "fields": [
+      {
+        "lineRange": "#25",
+        "pretty": "FunAnnotatedClass::mFirstLock",
+        "sym": "F_<T_FunAnnotatedClass>_mFirstLock",
+        "type": "class std::mutex",
+        "typesym": "T_std::mutex",
+        "offsetBytes": 0,
+        "sizeBytes": 40
+      },
+      {
+        "lineRange": "#26",
+        "pretty": "FunAnnotatedClass::mSecondLock",
+        "sym": "F_<T_FunAnnotatedClass>_mSecondLock",
+        "type": "class std::mutex",
+        "typesym": "T_std::mutex",
+        "offsetBytes": 40,
+        "sizeBytes": 40
+      },
+      {
+        "lineRange": "#28",
+        "pretty": "FunAnnotatedClass::firstProtectedField",
+        "sym": "F_<T_FunAnnotatedClass>_firstProtectedField",
+        "type": "int",
+        "offsetBytes": 80,
+        "sizeBytes": 4
+      },
+      {
+        "lineRange": "#29",
+        "pretty": "FunAnnotatedClass::generallyProtectedField",
+        "sym": "F_<T_FunAnnotatedClass>_generallyProtectedField",
+        "type": "int",
+        "offsetBytes": 84,
+        "sizeBytes": 4
+      }
+    ]
+  },
+  {
+    "loc": "00022:7-23",
+    "structured": 1,
+    "pretty": "FunAnnotatedClass::singleLockedFunc",
+    "sym": "_ZN17FunAnnotatedClass16singleLockedFuncEv",
+    "attrs": [
+      {
+        "name": "exclusive_locks_required",
+        "args": [
+          {
+            "sym": "F_<T_FunAnnotatedClass>_mFirstLock",
+            "loc": "00022:39"
+          }
+        ]
+      }
+    ],
+    "args": [],
+    "kind": "method",
+    "parentsym": "T_FunAnnotatedClass",
+    "overrides": [],
+    "props": [
+      "instance",
+      "user"
+    ]
+  },
+  {
+    "loc": "00023:7-23",
+    "structured": 1,
+    "pretty": "FunAnnotatedClass::doubleLockedFunc",
+    "sym": "_ZN17FunAnnotatedClass16doubleLockedFuncEv",
+    "attrs": [
+      {
+        "name": "exclusive_locks_required",
+        "args": [
+          {
+            "sym": "F_<T_FunAnnotatedClass>_mFirstLock",
+            "loc": "00023:39"
+          },
+          {
+            "sym": "F_<T_FunAnnotatedClass>_mSecondLock",
+            "loc": "00023:51"
+          }
+        ]
+      }
+    ],
+    "args": [],
+    "kind": "method",
+    "parentsym": "T_FunAnnotatedClass",
+    "overrides": [],
+    "props": [
+      "instance",
+      "user"
+    ]
+  },
+  {
+    "loc": "00025:13-23",
+    "structured": 1,
+    "pretty": "FunAnnotatedClass::mFirstLock",
+    "sym": "F_<T_FunAnnotatedClass>_mFirstLock",
+    "kind": "field",
+    "parentsym": "T_FunAnnotatedClass"
+  },
+  {
+    "loc": "00026:13-24",
+    "structured": 1,
+    "pretty": "FunAnnotatedClass::mSecondLock",
+    "sym": "F_<T_FunAnnotatedClass>_mSecondLock",
+    "kind": "field",
+    "parentsym": "T_FunAnnotatedClass"
+  },
+  {
+    "loc": "00028:6-25",
+    "structured": 1,
+    "pretty": "FunAnnotatedClass::firstProtectedField",
+    "sym": "F_<T_FunAnnotatedClass>_firstProtectedField",
+    "attrs": [
+      {
+        "name": "guarded_by",
+        "args": [
+          {
+            "sym": "F_<T_FunAnnotatedClass>_mFirstLock",
+            "loc": "00028:41"
+          }
+        ]
+      }
+    ],
+    "kind": "field",
+    "parentsym": "T_FunAnnotatedClass"
+  },
+  {
+    "loc": "00029:6-29",
+    "structured": 1,
+    "pretty": "FunAnnotatedClass::generallyProtectedField",
+    "sym": "F_<T_FunAnnotatedClass>_generallyProtectedField",
+    "attrs": [
+      {
+        "name": "guarded_var"
+      }
+    ],
+    "kind": "field",
+    "parentsym": "T_FunAnnotatedClass"
+  }
+]

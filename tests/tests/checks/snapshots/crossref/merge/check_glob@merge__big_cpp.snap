@@ -4892,6 +4892,9 @@ expression: "&json_results"
       "user"
     ],
     "variants": [],
+    "attrs": [
+      {}
+    ],
     "args": []
   },
   {
@@ -5185,6 +5188,9 @@ expression: "&json_results"
       "user"
     ],
     "variants": [],
+    "attrs": [
+      {}
+    ],
     "args": [
       {
         "name": "raw",
@@ -5436,6 +5442,9 @@ expression: "&json_results"
       "user"
     ],
     "variants": [],
+    "attrs": [
+      {}
+    ],
     "args": [
       {
         "name": "damage",

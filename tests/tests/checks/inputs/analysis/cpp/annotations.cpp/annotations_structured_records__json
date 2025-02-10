@@ -1,0 +1,2 @@
+# We want all the structured records to see all the annotations.
+filter-analysis cpp/annotations.cpp --record-type structured

@@ -762,6 +762,9 @@ expression: sgc.to_json()
           "user"
         ],
         "variants": [],
+        "attrs": [
+          {}
+        ],
         "args": [
           {
             "name": "damage",

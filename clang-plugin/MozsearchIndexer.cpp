@@ -1594,6 +1594,59 @@ public:
     emitBindingAttributes(J, *decl);
   }
 
+  void emitStructuredAttrArgsInsideArray(llvm::json::OStream &J,
+                                         const ArrayRef<Expr *> &Args) {
+    for (const auto *expr : llvm::make_range(Args.begin(), Args.end())) {
+      // Using this simplifies our processing logic by letting us ignore
+      // intermediary AST nodes.  For example, alignas by default introduces a
+      // ConstantExpr we would need to otherwise/pierce traverse, but this way
+      // we can simply examine the literal nodes.
+      auto *spellExpr = expr->IgnoreUnlessSpelledInSource();
+      if (!spellExpr) {
+        continue;
+      }
+
+      J.objectBegin();
+
+      SourceLocation Loc;
+
+      if (auto *litExpr = dyn_cast<IntegerLiteral>(spellExpr)) {
+        J.attribute("int", litExpr->getValue().getLimitedValue());
+      } else if (auto *litExpr = dyn_cast<FloatingLiteral>(spellExpr)) {
+        J.attribute("float", litExpr->getValue().convertToDouble());
+      } else if (auto *litExpr = dyn_cast<CXXBoolLiteralExpr>(spellExpr)) {
+        J.attribute("bool", litExpr->getValue());
+      } else if (auto *litExpr = dyn_cast<StringLiteral>(spellExpr)) {
+        J.attribute("string", litExpr->getString());
+      } else if (auto *declExpr = dyn_cast<DeclRefExpr>(spellExpr)) {
+        Loc = declExpr->getLocation();
+
+        auto *refDecl = declExpr->getFoundDecl();
+        J.attribute("sym", getMangledName(CurMangleContext, refDecl));
+      } else if (auto *memberExpr = dyn_cast<MemberExpr>(spellExpr)) {
+        Loc = memberExpr->getMemberLoc();
+
+        auto *refDecl = memberExpr->getMemberDecl();
+        J.attribute("sym", getMangledName(CurMangleContext, refDecl));
+      }
+
+      if (!Loc.isInvalid()) {
+        if (SM.isMacroBodyExpansion(Loc)) {
+          Loc = SM.getFileLoc(Loc);
+        }
+        normalizeLocation(&Loc);
+        if (!Loc.isInvalid()) {
+          std::string LocStr = locationToString(Loc);
+          if (!LocStr.empty()) {
+            J.attribute("loc", LocStr);
+          }
+        }
+      }
+
+      J.objectEnd();
+    }
+  }
+
   void emitStructuredInfo(SourceLocation Loc, const NamedDecl *decl) {
     std::string json_str;
     llvm::raw_string_ostream ros(json_str);
@@ -1608,6 +1661,85 @@ public:
     J.attribute("structured", 1);
     J.attribute("pretty", getQualifiedName(decl));
     J.attribute("sym", getMangledName(CurMangleContext, decl));
+
+    if (decl->hasAttrs()) {
+      J.attributeBegin("attrs");
+      J.arrayBegin();
+      for (const auto *attr : decl->attrs()) {
+        J.objectBegin();
+
+        if (auto *name = attr->getAttrName()) {
+          J.attribute("name", name->getName());
+        }
+
+        // Normalize arguments across the variety of attributes that can exist;
+        // cribbed from Sema::checkThisInStaticMemberFunctionAttributes but with
+        // a few extra added.  There is a visitor mechanism available but it's
+        // not clear it would accomplish anything but make things more verbose.
+
+        Expr *Arg = nullptr;
+        ArrayRef<Expr *> Args;
+        if (const auto *G = dyn_cast<GuardedByAttr>(attr))
+          Arg = G->getArg();
+        else if (const auto *G = dyn_cast<PtGuardedByAttr>(attr))
+          Arg = G->getArg();
+        else if (const auto *AA = dyn_cast<AcquiredAfterAttr>(attr))
+          Args = llvm::ArrayRef(AA->args_begin(), AA->args_size());
+        else if (const auto *AB = dyn_cast<AcquiredBeforeAttr>(attr))
+          Args = llvm::ArrayRef(AB->args_begin(), AB->args_size());
+        else if (const auto *ETLF =
+                     dyn_cast<ExclusiveTrylockFunctionAttr>(attr)) {
+          Arg = ETLF->getSuccessValue();
+          Args = llvm::ArrayRef(ETLF->args_begin(), ETLF->args_size());
+        } else if (const auto *STLF =
+                       dyn_cast<SharedTrylockFunctionAttr>(attr)) {
+          Arg = STLF->getSuccessValue();
+          Args = llvm::ArrayRef(STLF->args_begin(), STLF->args_size());
+        } else if (const auto *LR = dyn_cast<LockReturnedAttr>(attr))
+          Arg = LR->getArg();
+        else if (const auto *LE = dyn_cast<LocksExcludedAttr>(attr))
+          Args = llvm::ArrayRef(LE->args_begin(), LE->args_size());
+        else if (const auto *RC = dyn_cast<RequiresCapabilityAttr>(attr))
+          Args = llvm::ArrayRef(RC->args_begin(), RC->args_size());
+        else if (const auto *AC = dyn_cast<AcquireCapabilityAttr>(attr))
+          Args = llvm::ArrayRef(AC->args_begin(), AC->args_size());
+        else if (const auto *AC = dyn_cast<TryAcquireCapabilityAttr>(attr))
+          Args = llvm::ArrayRef(AC->args_begin(), AC->args_size());
+        else if (const auto *RC = dyn_cast<ReleaseCapabilityAttr>(attr))
+          Args = llvm::ArrayRef(RC->args_begin(), RC->args_size());
+        // These are added:
+        else if (const auto *AA = dyn_cast<AnnotateAttr>(attr))
+          Args = llvm::ArrayRef(AA->args_begin(), AA->args_size());
+        else if (const auto *AA = dyn_cast<AnnotateTypeAttr>(attr))
+          Args = llvm::ArrayRef(AA->args_begin(), AA->args_size());
+        else if (const auto *AA = dyn_cast<AlignedAttr>(attr))
+          Arg = AA->getAlignmentExpr();
+
+        if (Arg || Args.size()) {
+          J.attributeBegin("args");
+          J.arrayBegin();
+
+          if (Arg) {
+            emitStructuredAttrArgsInsideArray(J, llvm::ArrayRef(Arg));
+          }
+          emitStructuredAttrArgsInsideArray(J, Args);
+
+          J.arrayEnd();
+          J.attributeEnd();
+        }
+
+        // The location/range for the attributes are usually not interesting
+        // because (after macro normalization) they reference the location of
+        // the attribute token which is usually in a header where the glue
+        // macros are defined.  In this case it's probably more useful to just
+        // use the location of the def/decl of the symbol that has the attribute
+        // on it.
+
+        J.objectEnd();
+      }
+      J.arrayEnd();
+      J.attributeEnd();
+    }
 
     if (const RecordDecl *RD = dyn_cast<RecordDecl>(decl)) {
       emitStructuredRecordInfo(J, Loc, RD);

@@ -1,7 +1,6 @@
 ---
 source: tests/test_check_insta.rs
 expression: "&json_results"
-snapshot_kind: text
 ---
 [
   {
@@ -9,6 +8,9 @@ snapshot_kind: text
     "structured": 1,
     "pretty": "outerNS::Superhero::takeDamage",
     "sym": "_ZN7outerNS9Superhero10takeDamageEi",
+    "attrs": [
+      {}
+    ],
     "args": [
       {
         "name": "damage",

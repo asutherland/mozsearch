@@ -131,7 +131,12 @@ expression: "&to_value(sttl).unwrap()"
             "fields": [],
             "overrides": [],
             "props": [],
-            "variants": []
+            "variants": [],
+            "attrs": [
+              {
+                "name": "annotate"
+              }
+            ]
           },
           "jumps": {
             "def": "field-layout/field-type.cpp#47"
@@ -498,7 +503,17 @@ expression: "&to_value(sttl).unwrap()"
             ],
             "overrides": [],
             "props": [],
-            "variants": []
+            "variants": [],
+            "attrs": [
+              {
+                "name": "alignas",
+                "args": [
+                  {
+                    "int": 8
+                  }
+                ]
+              }
+            ]
           },
           "jumps": {
             "def": "field-layout/field-type.h#20"
