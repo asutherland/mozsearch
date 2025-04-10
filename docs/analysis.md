@@ -261,7 +261,10 @@ calling bytes "char units" just adds terrifying confusion.
 Raw record info.  These are attributes that will be found in the analysis files.
 - `pretty`: The pretty name/identifier for this structured symbol info.
 - `sym`: The searchfox symbol for this symbol.
-- `kind`: A string with one of the following values:
+- `kind`: A string with one of the following values, noting that we now have a
+  bunch of extra values here as we gain support for indexing standards
+  specifications, and maybe of the values only make sense with an implKind of
+  `spec`:
   - `file`: This is a synthetic symbol for the file (`FILE_normalized_blah`) for
     purposes like diagramming where we always operate in symbol space.  Keep in
     mind that we also store per-file info in `concise-per-file-info.json` and
@@ -274,15 +277,62 @@ Raw record info.  These are attributes that will be found in the analysis files.
   - `union`
   - `method`: It's a method on a class/struct.  It will have `overrides`.
   - `function`: A boring function.  No `overrides`.
+  - `event`: From the bikeshed/spec concept of an event.  I think this will
+    generally be a higher order concept like the gecko observer service
+    notifications or other dynamically/weakly typed (event) notifications.
+  - `permission`: From the bikeshed/spec concept.  This is also higher order
+    and seems worth distinguishing.
+  - `enum`: An enum which in turn contains `enumConstant` values.  For clang
+    this corresponds to an EnumDecl which is-a TagDecl.
+  - `enumConstant`: Tht individual values in an enum.  For clang this
+    corresponds to an EnumConstantDecl which is-a ValueDecl.
   - `field`: A member of a class/struct.  Right now the field record has minimal
     info with the intent being that the data canonically lives on the parent
     symbol and this just provides the `parentsym` necessary to get to that info.
     But this potentially needs more thought.  TODO: Think more on this!
+  - `parameter`: Function parameter/argument.
+  - `const`: A static constant value known at compilation time, as opposed to a
+    JS `const` (a local variable only assigned once) or C++ `const`.  The name
+    is coming from WebIDL here; maybe we should pick a different name?
+  - `localVar`: A local variable (clang says `isLocalVarDecl`)
+  - `variable`: A namespace scope variable
+  - `callback`: Analogous to the WebIDL "callback" concept, in C this could be
+    a function pointer type which would be used to describe an argument that is
+    intended to be used for callback purposes.  We currently don't really emit
+    semantics for arguments in C++, just their types (but it could be useful to
+    express this).
+  - `typedef`: Introduced for WebIDL typedef currently; for C++ right now we
+    emit `TA_` synthetic symbols and it would be good to maybe unify with that
+    a bit.
   - `ipc`: An IPC function where there's a send method and a recv method.
   - `namespace`: We currently don't emit this for structured records from the
     C++ indexer, but we probably want to start to; currently adding this for
     tree-sitter based tokenization where it's potentially useful to be able to
     refer to namespaces.
+  - `specDfn`: Bikeshed "dfn" "for general terms and phrases"
+  - `specAbstractOp`: Bikeshep "abstract-op" "for English-language algorithms".
+  - `specGrammar`: Bikeshed "grammar" "for definitions of operataotrs used in
+    grammar definitions, like || and similar".
+  - `urlScheme`: Bikeshed "scheme" for URL schemes.
+  - `element`: HTML element
+  - `elementAttr`: Attribute on an HTML element.  Sufficiently distinct from
+    other concepts of attributes that it gets element in the name.
+    `elementAttrValue`: A valid value for an `elementAttr`.
+  - `elementState`: Concept of state on an HTML (input) element.  Not sure we
+    really need this but since we have `elementAttr`, why not.
+  - `cssAtRule`: CSS at-rule like `@font-face`
+  - `cssDescriptor`: Per Bikeshed, stuff inside at-rules like `@font-face`.
+  - `cssProperty`: CSS Property
+  - `cssValue`: Per Bikeshed, any value that goes inside a property/at-rule/etc.
+  - `cssType`: Per Bikeshed, CSS abstract type like `<length>` or `<image>`
+  - `cssFunction`: Per Bikeshed, CSS functions like `counter()` or `linear-gradient()`
+  - `cssSelector`: CSS Selector
+  - `httpHeader`: An HTTP header.
+  - `cddlModule`: Bikeshed CDDL module.
+  - `cddlType`: Bikeshed CDDL type.
+  - `cddlKey`: Bikeshed CDDL key.
+  - `cddlParameter`: Bikeshed CDDL parameter.
+  - `cddlValue`: Bikeshed CDDL value.
 - `parentsym`: For methods and fields, the symbol of the record to which they
   belong.  The current intent is that this is not populated for namespace
   purposes.  (That is, for a class "Bar" in namespace "foo" with pretty name
@@ -296,13 +346,18 @@ Raw record info.  These are attributes that will be found in the analysis files.
 - `slotOwner`: For bindings, an optional `StructuredBindingSlotInfo` as found in
   `bindingSlots` but in the opposite direction and identifying the owning symbol.
 - `implKind`: Assume to be "impl" if not present.  Reasonable values:
-  - `idl`: This is the semantic definition in XPIDL, IPDL, WebIDL, etc.
+  - `idl`: This is the semantic definition in XPIDL/IPDL/WebIDL/etc. in a source
+    file used for code-generation/similar.  Compare with `spec` where the
+    definitions and uses are in specification documents and may differ as
+    implementations may not match the spec, etc.
   - `binding`: Ex: WebIDL binding glue.  Auto-generated and perhaps of interest
     but of less interst than the `idl` or the `impl`.  Note that in cases like
     XPIDL, the binding machinery may be invisible for searchfox's context menus
     and the like.
   - `impl`: By default, most things will be "impl".  But when WebIDL/etc. are
     involved this will be the actual implementation.
+  - `spec`: This is from an ideally standards-targeted specification.  Specs
+    quite reasonably have a huge number of
 - `sizeBytes`: Size in bytes.  Not present for method/function.
 - `bindingSlots`: For binding definitions, an array of `StructuredBindingSlotInfo`:
   - `slotKind`: See `BindingSlotKind`
@@ -333,14 +388,32 @@ Raw record info.  These are attributes that will be found in the analysis files.
   - `pretty`: The pretty name/identifier for this field.
   - `sym`: The searchfox symbol for this field.
   - `type`: Compiler's string representation of the type.  This is still
-    somewhat experimental and the same thing we emit for source records.
-  - `typesym`: The searchfox symbol for the type of this field.
+    somewhat experimental and the same thing we emit for source records.  We
+    try and parse this during crossref to give us `pointerInfo`.
+  - `typesym`: The searchfox symbol for the type of this field.  Note that this
+    currently will frequently not be as useful as what we parse into
+    `pointerInfo`.
+  - `pointerInfo`: Currently hackily derived during crossref by parsing the
+    raw `type` string in order to be able to know the referenced types for smart
+    pointers and templated data structures.  While there will always need to be
+    a separate ontology pass to figure out what types implement strong pointers
+    versus weak pointers, etc. we ideally could emit more structured information
+    from clang so that we don't have to do hacky parsing and pretty identifier
+    lookup.
   - `offsetBytes`: Byte offset of the field within this immediate structure.
   - `bitPositions`: Only present in bit-fields.  Object with the following
     properties whose names are derived from the AST dumper:
     - `begin`
     - `width`
   - `sizeBytes`: Only present in non-bit-fields.  The size of the fieldin bytes.
+- `args`: Function/method arguments, still in flux, an array of:
+  - `name`: Argument name
+  - `type`: The type of the argument, currently we use getOriginalType in clang
+  - `typesym`: The searchfox symbol for the type using similar logic to what we
+    use for fields.
+- TODO: `values`: For enums we should probably have the specific values possible
+  be listed here.  For bikeshed right now I'm just reusing "fields" but it's a
+  huge hack.
 - `overrides`: For methods, an array of method signatures that are overridden.
   - `sym`: The searchfox symbol for the referenced method.
 - `props`: For methods, an array of strings whose presence indicates a semantic

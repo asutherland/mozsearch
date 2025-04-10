@@ -202,6 +202,10 @@ where
     pub context: StrT,
     #[serde(default, skip_serializing_if = "string_or_ustr_is_empty")]
     pub contextsym: StrT,
+    #[serde(default, skip_serializing_if = "string_or_ustr_is_empty")]
+    /// Rendered location, usually an HTML anchor string including the hash.
+    /// Initially for indexing web-standards but possible for in-tree docs too.
+    pub rendered: StrT,
     #[serde(
         rename = "peekRange",
         default,
